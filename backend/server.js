@@ -28,7 +28,10 @@ const db = {
 
 // Global Connection Gate State
 let activeDroneSession = null;
+let connectionVerified = false; // Systemic verification boolean logic flag
 let simulationInterval = null;
+let missionAnchored = false;
+let activeMissionTx = null;
 
 // Terminal Log Emitter
 function emitLog(msg) {
@@ -76,7 +79,8 @@ app.post('/verify-drone', async (req, res) => {
 app.post('/establish-connection', (req, res) => {
     emitLog(`[ZK-GATE] Handshake complete. Generating ephemeral session token...`);
     activeDroneSession = 'SESSION_' + Math.random().toString(36).substr(2, 9) + Date.now();
-    emitLog(`[SYS] Connection Established. Unlocking telemetry capabilities and encrypting stream using AES-256 Symmetric Key.`);
+    connectionVerified = true;
+    emitLog(`[SYS] Connection Established (connectionVerified = true). Unlocking telemetry capabilities and encrypting stream using AES-256 Symmetric Key.`);
     
     if (!simulationInterval) {
         startSimulation();
@@ -92,7 +96,10 @@ app.post('/terminate-session', (req, res) => {
        simulationInterval = null;
     }
     activeDroneSession = null;
-    emitLog(`[SYS] Session completely wiped. Data transmission halted. Returning to Zero-Trust state.`);
+    connectionVerified = false;
+    missionAnchored = false;
+    activeMissionTx = null;
+    emitLog(`[SYS] Session completely wiped. connectionVerified boolean reset to false. Returning to Zero-Trust state.`);
     res.json({ success: true });
 });
 
@@ -113,6 +120,10 @@ app.post('/register-mission', async (req, res) => {
       txId,
       timestamp: Date.now()
     };
+    
+    missionAnchored = true;
+    activeMissionTx = txId;
+    emitLog(`[STELLAR] Mission explicitly anchored to network ledger. Hardware flight boundaries unlocked.`);
     
     res.json({ success: true, missionId, hashHex, txId });
   } catch(e) {
@@ -237,8 +248,8 @@ io.on('connection', (socket) => {
   socket.emit('waypoints', waypoints);
 
   socket.on('command', (payload) => {
-    if (!activeDroneSession || !payload || !payload.__encrypted) {
-      emitLog(`[SYS] BLOCKED: Command rejected. No active authenticated AES session.`);
+    if (!connectionVerified || !activeDroneSession || !missionAnchored || !payload || !payload.__encrypted) {
+      emitLog(`[SYS] BLOCKED: Command rejected. Global connectionVerified OR missionAnchored constraint evaluated to FALSE.`);
       return;
     }
 
@@ -261,15 +272,27 @@ io.on('connection', (socket) => {
   });
 
   socket.on('upload_mission', (payload) => {
-    if (!activeDroneSession || !payload || !payload.__encrypted) {
-      emitLog(`[SYS] BLOCKED: Mission upload rejected. Secure encrypted connection required.`);
+    if (!connectionVerified || !activeDroneSession || !missionAnchored || !payload || !payload.__encrypted) {
+      emitLog(`[SYS] BLOCKED: Mission upload rejected. Secure connection OR mission anchor verification missing.`);
       return;
     }
     try {
        const bytes = CryptoJS.AES.decrypt(payload.data, activeDroneSession);
        const wps = JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
-       waypoints = wps;
-       emitLog(`[SYS] Received ZK/Blockchain verified & AES encrypted mission (${wps.length} waypoints).`);
+       
+       // Prompt requisite: Synchronously call Horizon API to re-verify hash validity physically on-chain before injecting trajectories
+       const hashHex = computeHash(JSON.stringify(wps));
+       verifyHashOnBlockchain(activeMissionTx, hashHex).then(isOnChain => {
+           if(!isOnChain) {
+               emitLog(`[STELLAR] CRITICAL REJECT: Unanchored physical coordinate offset detected. Payload systematically dropped.`);
+               return;
+           }
+           waypoints = wps;
+           emitLog(`[SYS] Received rigorous on-chain verified & AES encrypted geometric pathing vectors (${wps.length} nodes).`);
+       }).catch(e => {
+           emitLog(`[STELLAR] Validation connectivity failure querying testnet ledger.`);
+       });
+       
     } catch(e) {
        emitLog(`[SYS] BLOCKED: AES Decryption Failed on incoming Mission Payload.`);
     }
@@ -281,6 +304,8 @@ io.on('connection', (socket) => {
        clearInterval(simulationInterval);
        simulationInterval = null;
        activeDroneSession = null;
+       missionAnchored = false;
+       activeMissionTx = null;
        console.log('All clients disconnected. Pausing telemetry simulation and invalidating session.');
     }
   });

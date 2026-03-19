@@ -161,34 +161,48 @@ export default function App() {
 
   const connectWallet = async () => {
     try {
-      if (await freighterAPI.isConnected()) {
-        let accessResult;
+      if (window.freighterApi || await freighterAPI.isConnected()) {
         try {
-           accessResult = await freighterAPI.requestAccess();
+           await freighterAPI.requestAccess();
         } catch (err) {
-           throw new Error("Access request denied or failed.");
+           throw new Error("Access request explicitly denied by user.");
         }
         
+        // Exact constraint: Ensure Network strictly reads TESTNET
+        let activeNetwork = "";
+        try {
+           const netInfo = await freighterAPI.getNetwork();
+           activeNetwork = typeof netInfo === "string" ? netInfo : netInfo?.network || "PUBLIC";
+        } catch (e) {
+           throw new Error("Could not verify active Freighter wallet network.");
+        }
+
+        if (!activeNetwork.toUpperCase().includes('TESTNET')) {
+           alert("Freighter Wallet is currently not mapped to TESTNET. Please switch networks in your wallet extension settings.");
+           throw new Error(`Freighter configured to invalid network: Required TESTNET (Found: ${activeNetwork})`);
+        }
+        
+        // Exact constraint: Fetch Public Key unequivocally via getPublicKey()
         let pubKey = "";
-        if (typeof accessResult === 'string') {
-            pubKey = accessResult;
-        } else if (accessResult && typeof accessResult === 'object') {
-           if (accessResult.error) throw new Error(accessResult.error);
-           pubKey = accessResult.address || accessResult.publicKey || Object.values(accessResult)[0] || "";
+        try {
+           const pk = await freighterAPI.getPublicKey();
+           pubKey = typeof pk === "string" ? pk : pk?.publicKey || "";
+        } catch (e) {
+           throw new Error("Freighter denied getPublicKey request execution.");
         }
         
         if (pubKey && typeof pubKey === 'string' && pubKey.length > 10) {
           setWalletAddress(pubKey);
-          setLogs(prev => [`[${new Date().toLocaleTimeString()}] Connected Freighter Wallet: ...${pubKey.substring(Math.max(0, pubKey.length - 6))}`, ...prev]);
+          setLogs(prev => [`[${new Date().toLocaleTimeString()}] WALLET VERIFIED: ${pubKey.substring(0,8)}... on ${activeNetwork} ledger.`, ...prev]);
         } else {
-          throw new Error("Invalid address format returned from Freighter.");
+          throw new Error("Invalid native address returned systematically from Freighter wallet.");
         }
       } else {
-        alert("Freighter Wallet not installed. Please install the browser extension.");
+        alert("Freighter Wallet extension missing (window.freighterApi undefined). Please install.");
       }
     } catch (e) {
       console.error(e);
-      setLogs(prev => [`[${new Date().toLocaleTimeString()}] Freighter Connection Error: ${e.message || "Failed"}`, ...prev]);
+      setLogs(prev => [`[${new Date().toLocaleTimeString()}] Freighter Error: ${e.message}`, ...prev]);
     }
   };
 
@@ -237,6 +251,7 @@ export default function App() {
       } catch(e) {}
       sessionKeyRef.current = null;
       setIsDroneConnected(false);
+      setMissionIntegrity(null); // Explicitly void the mission integrity token visually
       
       // Reset Telemetry display defaults
       setTelemetry({ pitch: 0, roll: 0, lat: telemetry.lat, lng: telemetry.lng, altitude: 0, speed: 0, heading: 0, battery: 0, status: 'DISCONNECTED', mode: 'PLAN', gps: 0 });
@@ -502,14 +517,14 @@ export default function App() {
               <div className="grid grid-cols-2 gap-2">
                  <button 
                   onClick={() => { sendCommand('ARM'); setLogs(prev => [`[${new Date().toLocaleTimeString()}] COMMAND SENT: ARM`, ...prev]); }}
-                  disabled={!isDroneConnected}
+                  disabled={!isDroneConnected || !missionIntegrity?.success}
                   className="btn-danger w-full flex items-center justify-center gap-2 py-3 shadow-[inset_0px_1px_0px_rgba(255,255,255,0.2)] disabled:opacity-50 disabled:cursor-not-allowed"
                  >
                    <Zap size={16}/> ARM
                  </button>
                  <button 
                   onClick={() => { sendCommand('DISARM'); setLogs(prev => [`[${new Date().toLocaleTimeString()}] COMMAND SENT: DISARM`, ...prev]); }}
-                  disabled={!isDroneConnected}
+                  disabled={!isDroneConnected || !missionIntegrity?.success}
                   className="bg-slate-700 text-white hover:bg-slate-600 rounded font-medium transition-colors w-full flex items-center justify-center py-3 border border-slate-600 shadow-[inset_0px_1px_0px_rgba(255,255,255,0.1)] disabled:opacity-50 disabled:cursor-not-allowed"
                  >
                    DISARM
@@ -517,7 +532,7 @@ export default function App() {
               </div>
               <button 
                 onClick={() => { sendCommand('RTL'); setLogs(prev => [`[${new Date().toLocaleTimeString()}] COMMAND SENT: RETURN TO LAUNCH`, ...prev]); }}
-                disabled={!isDroneConnected}
+                disabled={!isDroneConnected || !missionIntegrity?.success}
                 className="mt-3 w-full bg-brand-amber/10 text-brand-amber border border-brand-amber/30 hover:bg-brand-amber hover:text-white py-2 rounded font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 RETURN TO LAUNCH
