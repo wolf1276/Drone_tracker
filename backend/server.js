@@ -6,7 +6,7 @@ const { ReadlineParser } = require('@serialport/parser-readline');
 const cors = require('cors');
 const CryptoJS = require('crypto-js');
 
-const { computeHash, registerHashOnBlockchain, verifyHashOnBlockchain } = require('./stellarService');
+const { computeHash, registerHashOnBlockchain, verifyHashOnBlockchain, searchHashInAccount, verifyTxId } = require('./stellarService');
 const { validateZkProof } = require('./zkVerificationService');
 
 const app = express();
@@ -183,6 +183,42 @@ app.post('/verify-firmware', async (req, res) => {
     });
   } catch(e) {
     res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/manual-verify', async (req, res) => {
+  try {
+    const { input } = req.body;
+    if (!input) return res.json({ success: false, reason: "Empty evaluation input" });
+    
+    let isJson = false;
+    let computedHash = input.trim();
+    
+    try {
+      if (computedHash.startsWith('{') || computedHash.startsWith('[')) {
+         JSON.parse(computedHash);
+         isJson = true;
+         computedHash = computeHash(computedHash);
+      }
+    } catch(e) {}
+    
+    if (!isJson && computedHash.length === 64) {
+       const txRes = await verifyTxId(computedHash);
+       if (txRes.success) {
+           txRes.explorerUrl = `https://stellar.expert/explorer/testnet/tx/${txRes.txId}`;
+           return res.json(txRes);
+       }
+    }
+    
+    const searchRes = await searchHashInAccount(computedHash);
+    if (searchRes.success) {
+       searchRes.explorerUrl = `https://stellar.expert/explorer/testnet/tx/${searchRes.txId}`;
+       return res.json(searchRes);
+    } else {
+       return res.json({ success: false, reason: searchRes.reason, computedHash });
+    }
+  } catch (e) {
+      res.status(500).json({ success: false, reason: e.message });
   }
 });
 

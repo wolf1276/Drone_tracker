@@ -90,8 +90,39 @@ async function verifyHashOnBlockchain(txId, expectedHashHex) {
   }
 }
 
+// Searches recent transactions for a matching payload hash securely
+async function searchHashInAccount(hashHex) {
+  try {
+    const accountId = sourceKeypair.publicKey();
+    const txPage = await server.transactions().forAccount(accountId).order('desc').limit(150).call();
+    for (const tx of txPage.records) {
+      if (tx.memo_type === 'hash') {
+        const memoBuffer = Buffer.from(tx.memo, 'base64');
+        const memoHex = memoBuffer.toString('hex');
+        if (memoHex === hashHex) {
+           return { success: true, txId: tx.id, hashHex: memoHex, timestamp: tx.created_at };
+        }
+      }
+    }
+    return { success: false, reason: "Hash footprint not found in recent ledger anchors." };
+  } catch(e) { return { success: false, reason: e.message }; }
+}
+
+async function verifyTxId(txId) {
+  try {
+    const tx = await server.transactions().transaction(txId).call();
+    if (tx && tx.memo_type === 'hash') {
+       const memHex = Buffer.from(tx.memo, 'base64').toString('hex');
+       return { success: true, txId: tx.id, hashHex: memHex, timestamp: tx.created_at };
+    }
+    return { success: false, reason: "TxID contains no hash memo anchor." };
+  } catch(e) { return { success: false }; }
+}
+
 module.exports = {
   computeHash,
   registerHashOnBlockchain,
-  verifyHashOnBlockchain
+  verifyHashOnBlockchain,
+  searchHashInAccount,
+  verifyTxId
 };

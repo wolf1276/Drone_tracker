@@ -34,6 +34,9 @@ The front end operates via React and TailwindCSS within a highly customized mono
 ### 📘 Judges' Ledger Modal
 A native **"NETWORK LEDGER"** overlay button that exposes the explicit cryptographic hashing running under the hood. It elegantly fetches active `TxID` blocks connected to your connected Freighter wallet, ensuring judges or auditors can visibly trace your integrity footprints on StellarExpert directly from the browser window.
 
+### 🔎 Integrity Verification Panel
+A built-in **"VERIFY PAYLOAD"** terminal allowing operators or auditors to paste raw Mission Vector JSONs, raw SHA-256 strings, or generic Stellar Transaction IDs. The local backend parses the strings, dynamically cross-references the active Testnet Ledger natively via `stellar-sdk`, and returns a strict visual `VERIFIED` or `REJECTED` boundary, completely eliminating reliance strictly on external block explorers.
+
 ---
 
 ## 🛠️ Technology Stack
@@ -80,10 +83,11 @@ npm run dev
 2. **Sync the Ledger:** Wait roughly 5 seconds; the backend will quietly anchor the simulated `STABLE_CORE_BIN_0X99` firmware onto the Stellar Testnet. The `FW: UNVERIFIED` badge top right will flip to **`FW: SECURED`**.
 3. **Prove Identity:** Click the massive **AUTHORIZE SECURE LINK** button. Watch the terminal blast through the ZK validation matrices and Horizon verification queries. The AES Session key establishes, clearing the overlay.
 4. **Command the Drone:** The system is now unlocked. You can see real-time Attitude and Artificial Horizon simulation running natively underneath AES encryption.
-5. **Anchor a Mission:** Use the Map pins to drop flight points. Click **Anchor Mission Integrity** in the Flight panel to write the SHA-256 hashes onto Stellar. 
-6. **Execute:** Once anchored, the **Execute & Upload** button becomes natively executable.
-7. **View the Receipts:** Click **NETWORK LEDGER** in the top navigation at any time to explicitly trace testnet transaction ID parity.
-8. **Terminate Base:** Instantly shred the AES-256 token matrices and halt all backend node loops globally by clicking the red `TERMINATE SECURE LINK` panic button.
+5. **Anchor a Mission:** Use the Map pins to drop flight points. Click **Anchor Mission Integrity** in the Flight panel to write the SHA-256 hashes onto Stellar. The drone hardware logic (ARM/DISARM) remains totally locked down until this mathematical chain evaluates.
+6. **Execute:** Once anchored successfully, the **Execute & Upload** button becomes natively executable.
+7. **Verify Cryptography Natively:** Click **VERIFY PAYLOAD** to open the embedded Mathematical Evaluator. Paste your payload JSON, generated Hash footprint, or TxID directly into the panel to force the backend to locally prove its explicit existence on-chain.
+8. **View the Receipts:** Click **NETWORK Ledger** in the top navigation at any time to trace testnet transaction ID parity across all interactions.
+9. **Terminate Base:** Instantly shred the AES-256 token matrices and halt all backend node loops globally by clicking the red `TERMINATE SECURE LINK` panic button.
 
 ---
 

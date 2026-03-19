@@ -72,6 +72,10 @@ export default function App() {
   const [terminalLogs, setTerminalLogs] = useState([]);
   const [isDroneConnected, setIsDroneConnected] = useState(false);
   const [showLedger, setShowLedger] = useState(false);
+  const [showVerifier, setShowVerifier] = useState(false);
+  const [verifyInput, setVerifyInput] = useState('');
+  const [verifyResult, setVerifyResult] = useState(null);
+  const [isVerifying, setIsVerifying] = useState(false);
   const sessionKeyRef = useRef(null);
 
   useEffect(() => {
@@ -324,6 +328,27 @@ export default function App() {
     return dist;
   };
 
+  const handleManualVerify = async () => {
+      setIsVerifying(true);
+      setVerifyResult(null);
+      try {
+        const res = await fetch('http://localhost:3000/manual-verify', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ input: verifyInput })
+        });
+        
+        if (!res.ok) {
+            throw new Error(`Server Pipeline Rejected (HTTP ${res.status}). You must KILL and RESTART your backend node terminal so it registers the newly deployed evaluation route!`);
+        }
+        
+        const data = await res.json();
+        setVerifyResult(data);
+      } catch(e) {
+        setVerifyResult({ success: false, reason: e.message });
+      }
+      setIsVerifying(false);
+  };
+
   return (
     <div className="h-screen w-screen bg-brand-slate text-gray-200 flex flex-col overflow-hidden font-sans">
       
@@ -347,6 +372,13 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-6 text-sm font-medium">
+          <button 
+             onClick={() => setShowVerifier(true)}
+             className="px-3 py-1 bg-[#1A1A1A] border border-gray-600 text-gray-300 hover:text-white rounded transition-colors text-[10px] font-bold tracking-widest flex items-center gap-2"
+          >
+             <ShieldCheck size={14}/> VERIFY PAYLOAD
+          </button>
+
           <button 
              onClick={() => setShowLedger(true)}
              className="px-3 py-1 bg-white text-black hover:bg-gray-200 rounded transition-colors text-[10px] font-bold tracking-widest flex items-center gap-2"
@@ -736,6 +768,66 @@ export default function App() {
                
                <div className="bg-black border-t border-gray-800 p-4 text-[10px] text-gray-600 text-center tracking-widest">
                   CRYPTOGRAPHIC DATA SOURCED DIRECTLY FROM HORIZON API (STELLAR DEVELOPMENT FOUNDATION)
+               </div>
+            </div>
+         </div>
+      )}
+
+      {/* Integrity Verifier Modal */}
+      {showVerifier && (
+         <div className="absolute inset-0 z-[3000] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-8">
+            <div className="bg-[#0a0a0a] border border-gray-700 w-full max-w-2xl flex flex-col rounded-xl shadow-[0_0_50px_rgba(255,255,255,0.05)] overflow-hidden">
+               <div className="flex justify-between items-center p-6 border-b border-gray-800 shrink-0">
+                  <h2 className="text-xl font-bold text-white tracking-widest flex items-center gap-3 w-full">
+                     <ShieldCheck size={24} className="text-brand-blue" /> INTEGRITY VERIFICATION PANEL
+                  </h2>
+                  <button onClick={() => setShowVerifier(false)} className="text-gray-500 hover:text-white"><X size={24}/></button>
+               </div>
+               <div className="p-6 flex flex-col gap-4">
+                  <p className="text-sm text-gray-400 font-mono mb-2">Mathematical Blockchain Evaluator: Paste raw Mission Vectors (JSON), SHA-256 Base Payload Hashes, or direct Stellar Horizon TxID blocks to mathematically verify their cryptographic anchor against the ledger locally.</p>
+                  
+                  <textarea 
+                     value={verifyInput}
+                     onChange={(e) => setVerifyInput(e.target.value)}
+                     className="w-full h-32 bg-black border border-gray-700 text-white p-3 font-mono text-xs rounded focus:outline-none focus:border-brand-blue transition-colors custom-scrollbar"
+                     placeholder='e.g. [{"lat": 37.77, "lng": -122.41, "alt": 100}] OR raw hash OR "TxID"'
+                  />
+                  
+                  <button 
+                     onClick={handleManualVerify}
+                     disabled={isVerifying || !verifyInput.trim()}
+                     className="bg-white text-black font-bold tracking-widest py-3 rounded hover:bg-gray-300 transition-colors disabled:opacity-50"
+                  >
+                     {isVerifying ? 'QUERYING STELLAR HORIZON...' : 'EVALUATE CRYPTOGRAPHIC INTEGRITY'}
+                  </button>
+
+                  {verifyResult && (
+                     <div className={`mt-4 p-4 rounded border font-mono ${verifyResult.success ? 'bg-brand-green/10 border-brand-green text-brand-green' : 'bg-[#1A1A1A] border-gray-700 text-brand-red'}`}>
+                        {verifyResult.success ? (
+                           <div className="space-y-2">
+                               <div className="font-bold text-sm mb-3 font-sans tracking-widest text-white">✓ VERIFIED BLOCKCHAIN ANCHOR</div>
+                               <div className="text-[10px] text-gray-400">Horizon Master Transaction Reference:</div>
+                               <div className="text-xs break-all cursor-text select-all text-gray-300">{verifyResult.txId}</div>
+                               <div className="text-[10px] text-gray-400 mt-2">Validated Payload Checksum:</div>
+                               <div className="text-xs break-all text-brand-green">{verifyResult.hashHex}</div>
+                               <div className="text-[10px] text-gray-400 mt-2">Network Protocol Stamp:</div>
+                               <div className="text-xs break-all text-gray-300">{new Date(verifyResult.timestamp).toLocaleString()}</div>
+                               <a href={verifyResult.explorerUrl} target="_blank" rel="noreferrer" className="inline-block mt-4 text-[10px] bg-brand-green text-black px-4 py-1.5 font-bold rounded uppercase tracking-widest hover:bg-white transition-colors">VIEW LEDGER NODE EXTERNALLY</a>
+                           </div>
+                        ) : (
+                           <div>
+                               <div className="font-bold text-sm mb-2 text-brand-red font-sans tracking-widest">✗ INTEGRITY CHECK REJECTED</div>
+                               <div className="text-xs text-brand-red mb-3">{verifyResult.reason || "Payload evaluates to NO KNOWN ANCHORS natively isolated inside active system ledgers."}</div>
+                               {verifyResult.computedHash && (
+                                  <>
+                                     <div className="text-[10px] text-gray-500 mt-3 border-t border-gray-800 pt-3">Local Computed Checksum Evaluation:</div>
+                                     <div className="text-[10px] text-white break-all bg-black p-2 border border-gray-800 rounded mt-1">{verifyResult.computedHash}</div>
+                                  </>
+                               )}
+                           </div>
+                        )}
+                     </div>
+                  )}
                </div>
             </div>
          </div>
