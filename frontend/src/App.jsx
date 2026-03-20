@@ -63,6 +63,8 @@ export default function App() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [logs, setLogs] = useState([]);
+  const [units, setUnits] = useState('METRIC'); // 'METRIC' or 'IMPERIAL'
+  const [mapLayer, setMapLayer] = useState('SATELLITE'); // 'SATELLITE' or 'STREETS'
   
   // Blockchain States
   const [walletAddress, setWalletAddress] = useState(null);
@@ -458,10 +460,15 @@ export default function App() {
         <div className="flex-1 flex flex-col relative z-0">
           <div className="flex-1 relative">
             <MapContainer center={[telemetry.lat, telemetry.lng]} zoom={17} zoomControl={false} className={`h-full w-full ${interactionMode !== 'NONE' || localMode === 'PLAN' ? 'cursor-crosshair' : ''}`}>
-              {/* Realtime API Maps - ESRI Satellite */}
+              {/* Realtime API Maps - Dynamic Base Layer */}
               <TileLayer 
-                 url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" 
-                 attribution='Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+                 key={mapLayer}
+                 url={mapLayer === 'SATELLITE' 
+                    ? "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                    : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"} 
+                 attribution={mapLayer === 'SATELLITE'
+                    ? 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+                    : '&copy; OpenStreetMap contributors'}
               />
               
               <MapInteractionHandler mode={interactionMode === 'NONE' && localMode === 'PLAN' ? 'WAYPOINT' : interactionMode} onAddWaypoint={handleAddWaypoint} onMeasure={handleMeasure} />
@@ -639,18 +646,18 @@ export default function App() {
       {/* 5. BOTTOM TELEMETRY BAR */}
       <footer className="h-14 bg-brand-panel border-t border-slate-700/50 z-50 flex items-center px-8 gap-8 shadow-[0_-4px_15px_rgba(0,0,0,0.3)] shrink-0 justify-around transition-opacity duration-300">
          <div className="flex flex-col items-center">
-            <span className="text-[9px] text-slate-500 font-sans tracking-widest uppercase mb-0.5">Altitude (m)</span>
+            <span className="text-[9px] text-slate-500 font-sans tracking-widest uppercase mb-0.5">Altitude ({units === 'METRIC' ? 'm' : 'ft'})</span>
             <span className={`font-mono font-bold text-lg flex items-center gap-1 leading-none ${isDroneConnected ? 'text-brand-green' : 'text-slate-600'}`}>
-               {isDroneConnected ? telemetry.altitude.toFixed(1) : '---'}
+               {isDroneConnected ? (units === 'METRIC' ? telemetry.altitude.toFixed(1) : (telemetry.altitude * 3.28084).toFixed(1)) : '---'}
             </span>
          </div>
          <div className="w-px h-6 bg-slate-700"></div>
 
          <div className="flex flex-col items-center">
-            <span className="text-[9px] text-slate-500 font-sans tracking-widest uppercase mb-0.5">Ground Spd (m/s)</span>
+            <span className="text-[9px] text-slate-500 font-sans tracking-widest uppercase mb-0.5">Ground Spd ({units === 'METRIC' ? 'm/s' : 'mph'})</span>
             <span className={`font-mono font-bold text-lg flex items-center gap-1 leading-none ${isDroneConnected ? 'text-white' : 'text-slate-600'}`}>
               <Gauge size={14} className={isDroneConnected ? "text-slate-400" : "text-slate-700"}/> 
-              {isDroneConnected ? telemetry.speed.toFixed(1) : '---'}
+              {isDroneConnected ? (units === 'METRIC' ? telemetry.speed.toFixed(1) : (telemetry.speed * 2.23694).toFixed(1)) : '---'}
             </span>
          </div>
          <div className="w-px h-6 bg-slate-700"></div>
@@ -672,6 +679,127 @@ export default function App() {
             </span>
          </div>
       </footer>
+      
+      {/* 6. MODALS & OVERLAYS */}
+
+      {/* Settings & Diagnostics Modal */}
+      {showSettings && (
+         <div className="absolute inset-0 z-[4000] bg-black/80 backdrop-blur-md flex items-center justify-end p-0">
+            <div className="bg-brand-panel w-full max-w-md h-full border-l border-slate-700 shadow-2xl flex flex-col transform transition-transform duration-300 ease-out">
+               <div className="p-6 border-b border-slate-700 flex justify-between items-center bg-slate-900/50">
+                  <h2 className="text-xl font-black text-white tracking-widest flex items-center gap-3">
+                     <Settings size={22} className="text-brand-blue" /> SETTINGS & DIAGNOSTICS
+                  </h2>
+                  <button onClick={() => setShowSettings(false)} className="text-slate-500 hover:text-white transition-colors p-2 hover:bg-slate-800 rounded-full">
+                     <X size={24} />
+                  </button>
+               </div>
+
+               <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
+                  
+                  {/* Telemetry Units */}
+                  <section>
+                     <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-4">Telemetry Units</h3>
+                     <div className="grid grid-cols-2 gap-2 p-1 bg-slate-900 rounded-lg border border-slate-800">
+                        <button 
+                           onClick={() => setUnits('METRIC')}
+                           className={`py-2 text-xs font-bold rounded transition-all ${units === 'METRIC' ? 'bg-brand-blue text-black shadow-lg shadow-brand-blue/20' : 'text-slate-400 hover:text-white'}`}
+                        >METRIC (m, m/s)</button>
+                        <button 
+                           onClick={() => setUnits('IMPERIAL')}
+                           className={`py-2 text-xs font-bold rounded transition-all ${units === 'IMPERIAL' ? 'bg-brand-blue text-black shadow-lg shadow-brand-blue/20' : 'text-slate-400 hover:text-white'}`}
+                        >IMPERIAL (ft, mph)</button>
+                     </div>
+                  </section>
+
+                  {/* Map Configuration */}
+                  <section>
+                     <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-4">Tactical Map Layer</h3>
+                     <div className="space-y-3">
+                        <div 
+                           onClick={() => setMapLayer('SATELLITE')}
+                           className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center gap-4 ${mapLayer === 'SATELLITE' ? 'border-brand-blue bg-brand-blue/5' : 'border-slate-800 bg-slate-900 hover:border-slate-600'}`}
+                        >
+                           <div className="w-12 h-12 rounded bg-slate-800 border border-slate-700 overflow-hidden shrink-0">
+                             <img src="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/15/12410/18155" alt="Sat" className="w-full h-full object-cover" />
+                           </div>
+                           <div className="flex-1">
+                              <div className="text-sm font-bold text-white">ESRI High-Res Satellite</div>
+                              <div className="text-[10px] text-slate-500">Global multi-spectral imagery</div>
+                           </div>
+                           {mapLayer === 'SATELLITE' && <ShieldCheck size={18} className="text-brand-blue" />}
+                        </div>
+
+                        <div 
+                           onClick={() => setMapLayer('STREETS')}
+                           className={`p-3 rounded-lg border transition-all cursor-pointer flex items-center gap-4 ${mapLayer === 'STREETS' ? 'border-brand-amber bg-brand-amber/5' : 'border-slate-800 bg-slate-900 hover:border-slate-600'}`}
+                        >
+                           <div className="w-12 h-12 rounded bg-slate-800 border border-slate-700 overflow-hidden shrink-0">
+                             <img src="https://a.tile.openstreetmap.org/15/12410/18155.png" alt="Street" className="w-full h-full object-cover grayscale opacity-50" />
+                           </div>
+                           <div className="flex-1">
+                              <div className="text-sm font-bold text-white">OSM Vector Core</div>
+                              <div className="text-[10px] text-slate-500">Fast-loading topographic layout</div>
+                           </div>
+                           {mapLayer === 'STREETS' && <ShieldCheck size={18} className="text-brand-amber" />}
+                        </div>
+                     </div>
+                  </section>
+
+                  {/* System Event Log (The previously hidden 'logs' state) */}
+                  <section className="flex flex-col h-[400px]">
+                     <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">System Event Log</h3>
+                        <span className="text-[9px] font-mono text-brand-blue bg-brand-blue/10 px-2 py-0.5 rounded border border-brand-blue/20">{logs.length} EVENTS</span>
+                     </div>
+                     <div className="flex-1 bg-black border border-slate-800 rounded-lg overflow-hidden flex flex-col">
+                        <div className="flex-1 overflow-y-auto p-4 font-mono text-[10px] space-y-2 custom-scrollbar">
+                           {logs.map((log, i) => {
+                              const isError = log.includes('Error') || log.includes('REJECTED') || log.includes('FAILURE');
+                              const isSuccess = log.includes('VERIFIED') || log.includes('Authenticated') || log.includes('Secured');
+                              return (
+                                 <div key={i} className={`p-2 rounded border-l-2 bg-slate-900/50 ${isError ? 'border-red-500 text-red-400' : isSuccess ? 'border-brand-green text-brand-green' : 'border-slate-700 text-slate-300'}`}>
+                                    {log}
+                                 </div>
+                              );
+                           })}
+                           {logs.length === 0 && <div className="text-slate-600 italic text-center py-8">No protocol events logged in the current session.</div>}
+                        </div>
+                        <button 
+                           onClick={() => setLogs([])}
+                           className="w-full py-2 bg-slate-900 border-t border-slate-800 text-[10px] font-bold text-slate-500 hover:text-brand-red transition-colors"
+                        >CLEAR EVENT LOG</button>
+                     </div>
+                  </section>
+
+                  {/* Network Diagnostics */}
+                  <section>
+                     <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-4">Network Diagnostics</h3>
+                     <div className="bg-slate-900 p-4 rounded-lg border border-slate-800 space-y-3">
+                        <div className="flex justify-between items-center">
+                           <span className="text-[10px] text-slate-500">GCS Endpoint</span>
+                           <span className="text-[10px] font-mono text-white">ws://localhost:3000</span>
+                        </div>
+                         <div className="flex justify-between items-center">
+                           <span className="text-[10px] text-slate-500">Stellar Network</span>
+                           <span className="text-[10px] font-mono text-brand-green">Testnet (Protocol v20)</span>
+                        </div>
+                        <div className="flex justify-between items-center pt-2 border-t border-slate-800">
+                           <span className="text-[10px] text-slate-500">Status</span>
+                           <span className={`text-[10px] font-bold font-mono ${isDroneConnected ? 'text-brand-green' : 'text-brand-amber'}`}>
+                              {isDroneConnected ? "SESSION_ACTIVE" : "AWAITING_HANDSHAKE"}
+                           </span>
+                        </div>
+                     </div>
+                  </section>
+               </div>
+               
+               <div className="p-6 bg-slate-900/80 border-t border-slate-700 text-[9px] text-slate-500 text-center uppercase tracking-widest">
+                  GCS Terminal v4.2.0 • Build 2024.03
+               </div>
+            </div>
+         </div>
+      )}
       
       {/* Blockchain Ledger Modal */}
       {showLedger && (

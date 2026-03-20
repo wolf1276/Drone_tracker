@@ -1,0 +1,119 @@
+    # 🚁 MISSION COMMAND: ZERO-TRUST DRONE TRACKER
+    ## Complete Project Walkthrough & Technical Specifications
+
+    ---
+
+    ### 💡 THE VISION: REDEFINING UAV SECURITY
+
+    **The Problem**:
+    Modern consumer and enterprise drones rely on vulnerable communication protocols (Wi-Fi, LTE, RF). If an attacker intercepts the signal, they can spoof telemetry, inject malicious flight paths, or hijack the drone entirely. Ground Control Stations currently have no way to *mathematically* prove that the drone they are talking to is truly theirs, or that its firmware hasn't been compromised.
+
+    **The Mission Command Idea**:
+    We built a **Zero-Trust Handshake Protocol** for Unmanned Aerial Vehicles (UAVs). We transition drone operations from "implicit trust" to "cryptographic authorization." 
+
+    The core idea is simple but powerful: **A drone is only as secure as its anchor.** 
+    1. **Dynamic Zero-Knowledge Proofs**: The hardware proves its identity without ever revealing its private cryptographic seed.
+    2. **Blockchain as the Ground Truth**: We anchor the drone’s "Digital DNA" (its firmware footprint) and its "Mission DNA" (the waypoint sequence) to the **Stellar Blockchain**. 
+    3. **Hard-Gated Execution**: Telemetry streams are physically blocked—and motors cannot be ARMED—unless both the hardware and the mission pass an on-chain integrity check.
+
+    This project turns a standard dashboard into a cryptographic defensive shield, ensuring that only authorized pilots can fly authorized hardware on authorized routes.
+
+    ---
+
+    ### 1. OVERVIEW
+    Mission Command is a military-grade Unmanned Aerial Vehicle (UAV) tracking and telemetry dashboard. It solves the problem of insecure drone communication by requiring a high-integrity, multi-layered handshake protocol before any telemetry is accepted or any command (like ARM) can be executed.
+
+    The system leverages the **Stellar Blockchain** to anchor firmware and mission identities, ensuring that neither the drone hardware nor its flight path have been tampered with.
+
+    ---
+
+    ### 2. CORE ARCHITECTURE STACK
+
+    #### **Backend (Middleware Gateway)**
+    - **Technology**: Node.js, Express, Socket.io.
+    - **Role**: Acts as the Secure Gateway between the drone hardware (simulated) and the Ground Control Station (GCS).
+    - **Security**: Handles the ZK-Handshake verification, AES-256 encryption, and Stellar Blockchain interactions using `stellar-sdk`.
+
+    #### **Frontend (Ground Control Station)**
+    - **Technology**: React 19, Vite, TailwindCSS, Lucide Icons.
+    - **Mapping**: Leaflet (via `react-leaflet`) using ESRI Satellite and OSM layers.
+    - **Role**: Provides a high-fidelity HUD for pilots, mission planning tools, and real-time telemetry visualization.
+
+    #### **Blockchain Layer (Stellar Testnet)**
+    - **Role**: Serves as the immutable "Anchoring" ledger.
+    - **Operations**: Uses the `MEMO_HASH` field in Stellar transactions to store SHA-256 footprints of authorized firmware and mission waypoint sequences.
+
+    ---
+
+    ### 3. THE "ZERO-TRUST" PROCESS FLOW
+
+    The application operates on a strict sequential verification pipeline:
+
+    #### **Stage 1: System Lockdown (Pre-Auth)**
+    Upon startup, the Frontend enters a "Lockout" state (rendered via `isDroneConnected === false`). All telemetry displays are voided, and the map shows a blurred overlay. No commands can reach the drone.
+
+    #### **Stage 2: ZK-Firmware Handshake**
+    1.  The drone initiates a request via `/initiate-handshake`.
+    2.  The drone submits a **Simulated ZK-Proof** (`zkVerificationService.js`) and its **Firmware SHA-256 Hash**.
+    3.  The backend verifies the proof and checks if that specific Firmware Hash is registered on the **Stellar Testnet**.
+    4.  If the hash is found on-chain and the proof is valid, the hardware is deemed authentic.
+
+    #### **Stage 3: AES-256 Session Establishment**
+    1.  Once verified, the backend generates a random **Ephemeral Session Token** (AES Key).
+    2.  This key is sent to the Frontend and stored in a `useRef` hook (`sessionKeyRef`).
+    3.  **From this point forward, every single telemetry packet and every single command is AES-encrypted.**
+
+    #### **Stage 4: Mission Integrity Anchoring**
+    The drone is physically blocked from being `ARMED` unless its mission is "Anchored":
+    1.  The pilot draws waypoints on the map.
+    2.  The pilot clicks **Anchor Mission Integrity**.
+    3.  The waypoint array is hashed and submitted to Stellar as a `MEMO_HASH`.
+    4.  The drone firmware (on the server-side) now has a reference transaction. When a pilot tries to "Arm", the server re-verifies that the current waypoints match the on-chain anchor exactly.
+
+    ---
+
+    ### 4. KEY UI COMPONENTS & FEATURES
+
+    #### **Tactical GIS HUD**
+    - **Dynamic Layers**: Switch between ESRI Satellite (Physical Recon) and OSM Vector (Topographic) via Settings.
+    - **Real-time Pathing**: Renders the drone's actual flight trajectory vs. the planned waypoint sequence.
+    - **Map Interaction**: Multiple tools for measurement, polygon drawing, and waypoint placement.
+
+    #### **Telemetry Display System**
+    - **Artificial Horizon**: A 3D-simulated CSS pitch/roll indicator using real-time IMU data.
+    - **Metric/Imperial Toggle**: Settings allow for dynamic conversion between m vs. ft and m/s vs. mph.
+
+    #### **Blockchain Integrity Panel**
+    - **Network Ledger Modal**: A live view of the system's presence on the Stellar network, showing transaction hashes and explorer links for firmware and mission blocks.
+    - **Manual Verifier**: An advanced tool for mission evaluators to paste JSON flight plans or TxIDs to verify their integrity against the ledger natively.
+
+    #### **Secure Developer Terminal**
+    A specialized panel at the bottom of the map that exposes the raw, server-side "Zero-Knowledge Gateway" logs. It shows the granular steps of the cryptographic handshake as they happen.
+
+    ---
+
+    ### 5. HOW DATA SYNCS (WebSockets)
+
+    1.  **Telemetry (`io.emit('telemetry')`)**: The backend generates telemetry at 10Hz. It encrypts the object using AES-256 and the session key. The frontend receives the encrypted packet, decrypts it, and updates the React state.
+    2.  **Commands (`socket.emit('command')`)**: Commands like `ARM`, `DISARM`, or `RTL` are encrypted by the pilot’s browser and decrypted by the backend server.
+    3.  **Logs (`socket.on('log')`)**: High-level system notifications are streamed to keep the pilot informed of background blockchain confirmations.
+
+    ---
+
+    ### 6. RUNNING THE PROJECT
+    
+    #### Option A: Manual Terminal Execution
+    - **Backend**: `cd backend && node server.js`
+    - **Frontend**: `cd frontend && npm run dev`
+
+    #### Option B: Docker Execution (Recommended)
+    The project is fully dockerized for consistency. To spin up the entire infrastructure:
+    ```bash
+    docker-compose up --build
+    ```
+    This will automatically handle dependencies and expose:
+    - **GCS Frontend**: `http://localhost:5173`
+    - **Secure Gateway**: `http://localhost:3000`
+
+    ---
+    *Walkthrough generated for Mission Command v4.2 Secure GCS.*
