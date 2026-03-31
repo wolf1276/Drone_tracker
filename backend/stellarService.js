@@ -45,13 +45,14 @@ function computeHash(dataString) {
 
 // Submits the SHA256 hex as a Memo in a transaction
 async function registerHashOnBlockchain(hashHex) {
+  let transaction; 
   try {
     const account = await server.loadAccount(sourceKeypair.publicKey());
     
     // Memo.hash accepts a 32-byte hex string! Ideal for SHA256.
     const memo = StellarSdk.Memo.hash(hashHex);
 
-    const transaction = new StellarSdk.TransactionBuilder(account, {
+    transaction = new StellarSdk.TransactionBuilder(account, {
       fee: await server.fetchBaseFee(),
       networkPassphrase
     })
@@ -69,6 +70,19 @@ async function registerHashOnBlockchain(hashHex) {
     const response = await server.submitTransaction(transaction);
     return response.hash;
   } catch (error) {
+    if (error?.response?.status === 504 && transaction) {
+       console.log("Transaction submission timed out. Checking if tx confirmed...");
+       const txHash = transaction.hash().toString('hex');
+       // Poll for success
+       for (let i = 0; i < 5; i++) {
+          await new Promise(r => setTimeout(r, 2000));
+          try {
+             await server.transactions().transaction(txHash).call();
+             console.log("Transaction found on-chain after timeout!");
+             return txHash;
+          } catch(e) {}
+       }
+    }
     console.error("Error submitting to Stellar:", error?.response?.data || error.message);
     throw new Error('Failed to register on blockchain');
   }

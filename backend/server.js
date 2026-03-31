@@ -138,20 +138,32 @@ app.post('/verify-mission', async (req, res) => {
     const localHash = computeHash(missionString);
     
     const record = db.missions[missionId];
-    if (!record) return res.status(404).json({ error: "Mission not recorded in integrity database." });
-    
-    if (record.hashHex !== localHash) {
-      return res.json({ success: false, reason: "Hash mismatch! Payload tampered locally." });
+    if (!record) {
+      emitLog(`[STELLAR] MISSION VERIFY REJECTED: Mission ${missionId} not found in localized registry.`);
+      return res.status(404).json({ error: "Mission not recorded in integrity database." });
     }
     
+    if (record.hashHex !== localHash) {
+      emitLog(`[STELLAR] INTEGRITY REJECTED: Current mission hash (${localHash.substring(0,8)}...) does NOT match the anchored hash (${record.hashHex.substring(0,8)}...).`);
+      return res.json({ success: false, reason: "Hash mismatch! Payload tampered or altered locally after anchoring." });
+    }
+    
+    emitLog(`[STELLAR] Verifying anchor Tx: ${record.txId.substring(0,8)}... on Horizon...`);
     const isValidOnChain = await verifyHashOnBlockchain(record.txId, localHash);
     
+    if (isValidOnChain) {
+      emitLog(`[STELLAR] MISSION AUTHENTICATED: Blockchain integrity confirmed for Tx ${record.txId.substring(0,8)}...`);
+    } else {
+      emitLog(`[STELLAR] ON-CHAIN VERIFY FAILED: Hash confirmed locally but not found/verified on Stellar Ledger.`);
+    }
+
     res.json({ 
       success: isValidOnChain, 
       txId: record.txId, 
       explorerUrl: `https://stellar.expert/explorer/testnet/tx/${record.txId}` 
     });
   } catch(e) {
+    emitLog(`[STELLAR] Unexpected verification node failure: ${e.message}`);
     res.status(500).json({ error: e.message });
   }
 });

@@ -3,7 +3,9 @@ import { io } from 'socket.io-client';
 import CryptoJS from 'crypto-js';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import * as freighterAPI from "@stellar/freighter-api";
+import StellarBoard from './components/stellar/StellarBoard';
 import 'leaflet/dist/leaflet.css';
+
 import { Navigation, MapPin, UploadCloud, Ruler, Settings, Battery, Signal, Zap, Target, Gauge, Crosshair, Map, Trash2, Shield, ShieldCheck, TerminalSquare, ShieldAlert, Network, X } from 'lucide-react';
 import L from 'leaflet';
 
@@ -58,6 +60,7 @@ export default function App() {
   const [localMode, setLocalMode] = useState('PLAN');
   
   // UI States
+  const [currentView, setCurrentView] = useState('MISSION'); // 'MISSION', 'STELLAR'
   const [interactionMode, setInteractionMode] = useState('NONE'); // 'WAYPOINT', 'MEASURE', 'POLYGON', 'NONE'
   const [measurePoints, setMeasurePoints] = useState([]);
   const [isFollowing, setIsFollowing] = useState(false);
@@ -157,6 +160,7 @@ export default function App() {
     if (localMode !== 'PLAN' && interactionMode !== 'WAYPOINT') return;
     const newWp = { id: Date.now(), ...wp };
     setWaypoints([...waypoints, newWp]);
+    setMissionIntegrity(null); // Invalidate integrity token on change
     const msg = `Added Waypoint ${waypoints.length + 1} at ${wp.lat.toFixed(4)}, ${wp.lng.toFixed(4)}`;
     setLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev]);
   };
@@ -355,110 +359,85 @@ export default function App() {
     <div className="h-screen w-screen bg-brand-slate text-gray-200 flex flex-col overflow-hidden font-sans">
       
       {/* 1. TOP NAVBAR */}
-      <header className="h-14 bg-brand-panel border-b border-slate-700/50 flex items-center justify-between px-4 z-50 shadow-md shrink-0">
-        <div className="flex items-center gap-3">
-          <Navigation className="text-brand-blue" size={24} />
-          <h1 className="text-xl font-bold tracking-tight text-white">MISSION COMMAND<span className="text-slate-500 font-normal ml-2">v4.2</span></h1>
-        </div>
-
-        <div className="flex items-center bg-slate-800 rounded-md p-1 border border-slate-700">
-          {['PLAN', 'SIMULATION', 'LIVE'].map(m => (
-            <button 
-              key={m}
-              onClick={() => handleModeChange(m)}
-              className={`px-4 py-1 text-sm font-medium rounded transition-colors ${localMode === m ? 'bg-brand-blue text-white shadow' : 'text-slate-400 hover:text-gray-200'}`}
-            >
-              {m}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-6 text-sm font-medium">
-          <button 
-             onClick={() => setShowVerifier(true)}
-             className="px-3 py-1 bg-[#1A1A1A] border border-gray-600 text-gray-300 hover:text-white rounded transition-colors text-[10px] font-bold tracking-widest flex items-center gap-2"
-          >
-             <ShieldCheck size={14}/> VERIFY PAYLOAD
-          </button>
-
-          <button 
-             onClick={() => setShowLedger(true)}
-             className="px-3 py-1 bg-white text-black hover:bg-gray-200 rounded transition-colors text-[10px] font-bold tracking-widest flex items-center gap-2"
-          >
-             <Network size={14}/> NETWORK LEDGER
-          </button>
-
-          <button 
-             onClick={connectWallet} 
-             className={`px-3 py-1 rounded border transition-colors ${walletAddress ? 'border-brand-blue text-brand-blue bg-brand-blue/10 font-mono text-[10px]' : 'border-slate-500 text-white bg-slate-800 hover:bg-slate-700'}`}
-          >
-             {walletAddress && typeof walletAddress === 'string' ? `FREIGHTER: ...${walletAddress.substring(Math.max(0, walletAddress.length - 6))}` : 'CONNECT WALLET'}
-          </button>
-          
-          {firmwareStatus?.success ? (
-               <a href={firmwareStatus.explorerUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-[10px] text-brand-green border border-brand-green/30 bg-brand-green/10 px-2 py-1 rounded" title="Firmware Intact on Stellar Blockchain">
-                  <ShieldCheck size={14}/> FW: SECURED
-               </a>
-            ) : (
-               <span className="flex items-center gap-1 text-[10px] text-slate-500 border border-slate-700 bg-slate-800 px-2 py-1 rounded"><Shield size={14}/> FW: UNVERIFIED</span>
-          )}
-
-          {isDroneConnected && (
-            <button onClick={disconnectSecureDrone} className="flex items-center gap-1 text-[10px] tracking-widest font-bold text-white bg-brand-red hover:bg-gray-600 border border-brand-red/50 shadow-[0_0_10px_rgba(255,255,255,0.2)] transition-colors px-2 py-1 rounded">
-               <ShieldAlert size={14}/> TERMINATE SECURE LINK
-            </button>
-          )}
-
-          <button 
-             onClick={() => setIsFollowing(!isFollowing)} 
-             className={`px-2 py-1 rounded border transition-colors ${isFollowing ? 'border-brand-blue text-brand-blue bg-brand-blue/10' : 'border-slate-600 text-slate-400'}`}
-          >
-             {isFollowing ? 'CAMERA LOCKED' : 'FREE CAM'}
-          </button>
-          <div className="flex items-center gap-2"><Target size={16} className={isDroneConnected ? "text-brand-green" : "text-slate-600"}/> GPS: {isDroneConnected ? telemetry.gps : 0} 3D FIX</div>
-          <div className="flex items-center gap-2"><Signal size={16} className={isDroneConnected ? "text-brand-blue" : "text-slate-600"}/> TELEM: {isDroneConnected ? "100%" : "0%"}</div>
-          <div className="flex items-center gap-2">
-            <Battery size={16} className={isDroneConnected && telemetry.battery > 20 ? "text-brand-green" : "text-slate-700"}/> 
-            {isDroneConnected ? telemetry.battery.toFixed(1) : '0.0'}% <span className="text-slate-500 font-mono">{isDroneConnected ? '22.4V' : '0.0V'}</span>
+      <header className="h-16 bg-brand-panel border-b border-stellar-indigo/20 flex items-center justify-between px-6 z-[100] shadow-2xl shrink-0">
+        <div className="flex items-center gap-4">
+          <div className="p-2 bg-gradient-to-br from-brand-blue to-teal-400 rounded-lg shadow-glow-blue">
+            <Navigation className="text-black" size={20} />
           </div>
+          <div>
+            <h1 className="text-xl font-black tracking-tight text-white flex items-center gap-2">
+              DRONE<span className="text-brand-blue">TRACKER</span> 
+              <span className="text-[10px] font-bold bg-white/5 border border-white/10 px-2 py-0.5 rounded text-slate-500">v4.2</span>
+            </h1>
+          </div>
+        </div>
+
+        <div className="flex items-center bg-black/40 rounded-xl p-1 border border-white/5 shadow-inner">
+          <button 
+            onClick={() => setCurrentView('MISSION')}
+            className={`px-6 py-2 text-xs font-black rounded-lg transition-all tracking-widest ${currentView === 'MISSION' ? 'bg-white text-black shadow-xl scale-105' : 'text-slate-500 hover:text-white'}`}
+          >
+            MISSION COMMAND
+          </button>
+          <button 
+            onClick={() => setCurrentView('STELLAR')}
+            className={`px-6 py-2 text-xs font-black rounded-lg transition-all tracking-widest ${currentView === 'STELLAR' ? 'bg-stellar-purple text-white shadow-glow-purple scale-105' : 'text-slate-500 hover:text-white'}`}
+          >
+            STELLAR dAPP
+          </button>
+        </div>
+
+        <div className="flex items-center gap-6 text-[10px] font-bold tracking-widest">
+           <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${isDroneConnected ? 'border-brand-green/30 bg-brand-green/5 text-brand-green' : 'border-slate-800 bg-black/40 text-slate-600'}`}>
+              <div className={`w-1.5 h-1.5 rounded-full ${isDroneConnected ? 'bg-brand-green animate-pulse' : 'bg-slate-700'}`} />
+              {isDroneConnected ? `SECURE_LINK: ${telemetry.status}` : 'LINK_DISCONNECTED'}
+           </div>
         </div>
       </header>
 
       {/* MAIN CONTENT AREA */}
       <div className="flex flex-1 relative overflow-hidden">
         
-        {/* 2. LEFT SIDEBAR (TOOLS) */}
-        <aside className="w-16 bg-brand-panel border-r border-slate-700/50 flex flex-col items-center py-4 gap-6 z-40 shrink-0 shadow-xl">
-           <button 
-             onClick={() => setInteractionMode(interactionMode === 'POLYGON' ? 'NONE' : 'POLYGON')}
-             className={`p-2 rounded transition-colors ${interactionMode === 'POLYGON' ? 'bg-brand-blue text-white shadow shadow-brand-blue/50' : 'text-slate-400 hover:text-brand-blue'}`} title="Draw Polygon"
-           ><Map size={24} /></button>
-           
-           <button 
-             onClick={() => {
-                setInteractionMode(interactionMode === 'MEASURE' ? 'NONE' : 'MEASURE');
-                if (interactionMode !== 'MEASURE') setMeasurePoints([]);
-             }}
-             className={`p-2 rounded transition-colors ${interactionMode === 'MEASURE' ? 'bg-brand-amber text-white shadow shadow-brand-amber/50' : 'text-slate-400 hover:text-brand-amber'}`} title="Measure Distance"
-           ><Ruler size={24} /></button>
-           
-           <button 
-             onClick={() => setInteractionMode(interactionMode === 'WAYPOINT' ? 'NONE' : 'WAYPOINT')}
-             className={`p-2 rounded transition-colors ${interactionMode === 'WAYPOINT' ? 'bg-brand-green text-white shadow shadow-brand-green/50' : 'text-slate-400 hover:text-brand-green'}`} title="Drop Waypoint"
-           ><MapPin size={24} /></button>
-           
-           <div className="w-8 h-px bg-slate-700 my-2"></div>
-           
-           <button onClick={uploadMission} className="text-slate-400 hover:text-brand-green transition-colors p-2" title="Upload Mission"><UploadCloud size={24} /></button>
-           
-           <button 
-             onClick={() => setShowSettings(!showSettings)}
-             className={`p-2 rounded transition-colors mt-auto ${showSettings ? 'bg-white text-black shadow shadow-white/50' : 'text-slate-400 hover:text-white'}`} title="Logs & Diagnostics"
-           ><Settings size={24} /></button>
-        </aside>
+        {/* 2. LEFT SIDEBAR (TOOLS) - Only shown in Mission View */}
+        {currentView === 'MISSION' && (
+          <aside className="w-20 bg-brand-panel border-r border-slate-800/50 flex flex-col items-center py-8 gap-8 z-50 shrink-0 shadow-2xl relative">
+             <div className="absolute inset-y-0 right-0 w-px bg-gradient-to-b from-transparent via-white/5 to-transparent" />
+             
+             <button 
+               onClick={() => setInteractionMode(interactionMode === 'POLYGON' ? 'NONE' : 'POLYGON')}
+               className={`p-3 rounded-xl transition-all hover:scale-110 ${interactionMode === 'POLYGON' ? 'bg-white text-black shadow-glow-blue' : 'bg-white/5 text-slate-400 border border-white/5 hover:bg-white/10'}`} title="Draw Area"
+             ><Map size={22} /></button>
+             
+             <button 
+               onClick={() => {
+                  setInteractionMode(interactionMode === 'MEASURE' ? 'NONE' : 'MEASURE');
+                  if (interactionMode !== 'MEASURE') setMeasurePoints([]);
+               }}
+               className={`p-3 rounded-xl transition-all hover:scale-110 ${interactionMode === 'MEASURE' ? 'bg-brand-amber text-black shadow-glow-purple' : 'bg-white/5 text-slate-400 border border-white/5 hover:bg-white/10'}`} title="Measure Path"
+             ><Ruler size={22} /></button>
+             
+             <button 
+               onClick={() => setInteractionMode(interactionMode === 'WAYPOINT' ? 'NONE' : 'WAYPOINT')}
+               className={`p-3 rounded-xl transition-all hover:scale-110 ${interactionMode === 'WAYPOINT' ? 'bg-brand-green text-black shadow-glow-blue' : 'bg-white/5 text-slate-400 border border-white/5 hover:bg-white/10'}`} title="Place Waypoint"
+             ><MapPin size={22} /></button>
+             
+             <div className="w-10 h-px bg-white/5 my-2"></div>
+             
+             <button onClick={uploadMission} className="p-3 rounded-xl bg-white/5 text-slate-400 border border-white/5 hover:bg-brand-green/20 hover:text-brand-green transition-all" title="Upload Protocol"><UploadCloud size={22} /></button>
+             
+             <button 
+               onClick={() => setShowSettings(!showSettings)}
+               className={`p-3 rounded-xl transition-all mt-auto ${showSettings ? 'bg-white text-black' : 'bg-white/5 text-slate-400 border border-white/5 hover:bg-white/10'}`} title="Diagnostics"
+             ><Settings size={22} /></button>
+          </aside>
+        )}
 
-        <div className="flex-1 flex flex-col relative z-0">
-          <div className="flex-1 relative">
+        {/* View Routing */}
+        <div className="flex-1 flex flex-col relative z-0 overflow-hidden bg-brand-slate">
+           {currentView === 'MISSION' ? (
+              <div className="flex-1 flex flex-col relative animate-in fade-in zoom-in duration-500 h-full">
+                {/* 3. MAP AREA */}
+                <div className="flex-1 relative">
             <MapContainer center={[telemetry.lat, telemetry.lng]} zoom={17} zoomControl={false} className={`h-full w-full ${interactionMode !== 'NONE' || localMode === 'PLAN' ? 'cursor-crosshair' : ''}`}>
               {/* Realtime API Maps - Dynamic Base Layer */}
               <TileLayer 
@@ -535,150 +514,183 @@ export default function App() {
                </div>
             )}
           </div>
-
-          {/* Secure Developer Terminal Panel */}
-          <div className="h-48 bg-[#050505] border-t border-brand-panel font-mono text-white flex flex-col shrink-0 shadow-[inset_0_10px_20px_rgba(0,0,0,0.8)] z-40">
-             <div className="bg-[#111111] border-b border-white/20 p-1 px-4 flex items-center justify-between">
-                <span className="text-[10px] text-white font-bold flex items-center gap-2"><TerminalSquare size={14}/> ZK-GATEWAY SECURE TERMINAL</span>
-                <span className="text-[10px] text-gray-500">{isDroneConnected ? "CONNECTION ESTABLISHED" : "AWAITING AUTHENTICATION"}</span>
-             </div>
-             <div className="flex-1 overflow-y-auto p-2 text-xs opacity-90 custom-scrollbar flex flex-col-reverse">
-                {terminalLogs.map((log, i) => <div key={i} className="py-0.5 break-all border-b border-gray-900 leading-relaxed text-gray-300">{log}</div>)}
-                <div className="text-gray-600 animate-pulse">_Terminal initialized. Awaiting secure handshake inputs...</div>
-             </div>
-          </div>
-        </div>
-
-        {/* 4. RIGHT PANEL */}
-        <aside className="w-80 bg-brand-panel border-l border-slate-700/50 flex flex-col z-40 shrink-0 shadow-[-4px_0_15px_rgba(0,0,0,0.3)]">
-           <div className="p-4 border-b border-slate-700/50">
-                <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2"><Zap size={14}/> Command Panel</h2>
-              <div className="grid grid-cols-2 gap-2">
-                 <button 
-                  onClick={() => { sendCommand('ARM'); setLogs(prev => [`[${new Date().toLocaleTimeString()}] COMMAND SENT: ARM`, ...prev]); }}
-                  disabled={!isDroneConnected || !missionIntegrity?.success}
-                  className="btn-danger w-full flex items-center justify-center gap-2 py-3 shadow-[inset_0px_1px_0px_rgba(255,255,255,0.2)] disabled:opacity-50 disabled:cursor-not-allowed"
-                 >
-                   <Zap size={16}/> ARM
-                 </button>
-                 <button 
-                  onClick={() => { sendCommand('DISARM'); setLogs(prev => [`[${new Date().toLocaleTimeString()}] COMMAND SENT: DISARM`, ...prev]); }}
-                  disabled={!isDroneConnected || !missionIntegrity?.success}
-                  className="bg-slate-700 text-white hover:bg-slate-600 rounded font-medium transition-colors w-full flex items-center justify-center py-3 border border-slate-600 shadow-[inset_0px_1px_0px_rgba(255,255,255,0.1)] disabled:opacity-50 disabled:cursor-not-allowed"
-                 >
-                   DISARM
-                 </button>
               </div>
-              <button 
-                onClick={() => { sendCommand('RTL'); setLogs(prev => [`[${new Date().toLocaleTimeString()}] COMMAND SENT: RETURN TO LAUNCH`, ...prev]); }}
-                disabled={!isDroneConnected || !missionIntegrity?.success}
-                className="mt-3 w-full bg-brand-amber/10 text-brand-amber border border-brand-amber/30 hover:bg-brand-amber hover:text-white py-2 rounded font-medium transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                RETURN TO LAUNCH
-              </button>
-              
-              <div className="mt-4 flex items-center justify-between bg-slate-900/50 rounded p-3 border border-slate-800">
-                 <span className="text-xs font-bold text-slate-400 tracking-wider">STATUS</span>
-                 <span className={`font-bold tracking-widest ${telemetry.status === 'ARMED' ? 'text-brand-red animate-pulse' : 'text-slate-300'}`}>
-                    {telemetry.status}
-                 </span>
-              </div>
-           </div>
-
-           <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Flight Plan</h2>
-                <div className="flex gap-2 items-center">
-                  <button onClick={clearWaypoints} className="text-slate-500 hover:text-brand-red p-1 rounded transition-colors" title="Clear Mission"><Trash2 size={16}/></button>
-                  <span className="text-[10px] font-bold text-brand-blue bg-brand-blue/10 px-2 py-1 rounded-full border border-brand-blue/20">{waypoints.length} WP</span>
+           ) : (
+              <div className="flex-1 p-10 bg-brand-slate overflow-y-auto custom-scrollbar animate-in slide-in-from-right-10 duration-700">
+                <div className="max-w-6xl mx-auto">
+                   <div className="mb-10">
+                      <h2 className="text-4xl font-black text-white tracking-tighter mb-2">STELLAR OPERATIONS</h2>
+                      <p className="text-slate-500 font-mono text-sm tracking-widest uppercase">Decentralized Asset Management & Cross-Chain Payments</p>
+                   </div>
+                   <StellarBoard />
                 </div>
               </div>
-              
-              <div className="space-y-2">
-                {waypoints.map((wp, i) => (
-                  <div key={wp.id} className="bg-slate-800/50 rounded py-2 px-3 border border-slate-700/50 flex justify-between items-center hover:bg-slate-800 transition-colors cursor-pointer group">
-                     <div className="flex gap-3 items-center">
-                        <span className="bg-slate-900 border border-slate-700 text-slate-400 w-6 h-6 rounded flex items-center justify-center font-mono text-xs group-hover:text-brand-blue group-hover:border-brand-blue/50 transition-colors">{i+1}</span>
-                        <div>
-                          <div className="font-mono text-gray-300 text-xs">{parseFloat(wp.lat).toFixed(4)}, {parseFloat(wp.lng).toFixed(4)}</div>
-                          <div className="text-[10px] text-slate-500 uppercase tracking-wider">Waypoint</div>
-                        </div>
-                     </div>
-                     <div className="text-brand-green font-mono text-sm bg-brand-green/10 px-2 rounded">
-                        <input type="number" value={wp.alt} onChange={e => {
-                           const newWp = [...waypoints];
-                           newWp[i].alt = e.target.value;
-                           setWaypoints(newWp);
-                        }} className="bg-transparent w-8 outline-none text-right" />m
-                     </div>
+           )}
+        </div>
+
+        {/* 4. RIGHT PANEL - Only shown in Mission View */}
+        {currentView === 'MISSION' && (
+          <aside className="w-96 bg-brand-panel border-l border-white/5 flex flex-col z-40 shrink-0 shadow-2xl">
+             <div className="p-6 border-b border-stellar-indigo/10 flex items-center justify-between">
+                <div className="flex items-center bg-black/40 rounded-lg p-1 border border-white/5">
+                  {['PLAN', 'LIVE'].map(m => (
+                    <button 
+                      key={m}
+                      onClick={() => handleModeChange(m)}
+                      className={`px-4 py-1 text-[10px] font-black tracking-widest rounded-md transition-all ${localMode === m ? 'bg-white text-black' : 'text-slate-500'}`}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+                <div className="text-[10px] font-mono text-slate-500">{new Date().toLocaleTimeString()}</div>
+             </div>
+             
+             <div className="p-6 border-b border-white/5">
+                  <h2 className="text-xs font-black text-slate-500 uppercase tracking-[0.2em] mb-6 flex items-center gap-2"><Zap size={14} className="text-brand-amber"/> Command Deck</h2>
+                <div className="grid grid-cols-2 gap-3">
+                   <button 
+                    onClick={() => { sendCommand('ARM'); setLogs(prev => [`[${new Date().toLocaleTimeString()}] PROTOCOL: ARM_TRIGGERED`, ...prev]); }}
+                    disabled={!isDroneConnected || !missionIntegrity?.success}
+                    className="bg-brand-red text-white py-4 rounded-xl font-black text-xs tracking-widest hover:bg-red-500 transition-all shadow-[0_10px_30px_-5px_rgba(239,68,68,0.3)] disabled:opacity-20 disabled:cursor-not-allowed group relative overflow-hidden"
+                   >
+                     <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
+                     <span className="relative">ARM_DRONE</span>
+                   </button>
+                   <button 
+                    onClick={() => { sendCommand('DISARM'); setLogs(prev => [`[${new Date().toLocaleTimeString()}] PROTOCOL: DISARM_VOID`, ...prev]); }}
+                    disabled={!isDroneConnected}
+                    className="bg-slate-800 text-slate-300 py-4 rounded-xl font-black text-xs tracking-widest hover:bg-slate-700 transition-all disabled:opacity-20"
+                   >
+                     DISARM
+                   </button>
+                </div>
+                <button 
+                  onClick={() => { sendCommand('RTL'); setLogs(prev => [`[${new Date().toLocaleTimeString()}] PROTOCOL: RETURNING_TO_HOME`, ...prev]); }}
+                  disabled={!isDroneConnected}
+                  className="mt-4 w-full bg-brand-amber/10 text-brand-amber border border-brand-amber/30 hover:bg-brand-amber hover:text-black py-3 rounded-xl font-black text-xs tracking-widest transition-all disabled:opacity-20"
+                >
+                  RETURN TO HOME
+                </button>
+             </div>
+
+             <div className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-8">
+                <section>
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-xs font-black text-slate-500 uppercase tracking-[0.2em]">Flight Database</h2>
+                    <div className="flex gap-3">
+                      <button onClick={clearWaypoints} className="text-slate-600 hover:text-brand-red transition-colors" title="Purge Mission"><Trash2 size={16}/></button>
+                      <span className="text-[10px] font-black text-brand-blue bg-brand-blue/10 px-3 py-1 rounded-lg border border-brand-blue/20">{waypoints.length} POINTS</span>
+                    </div>
                   </div>
-                ))}
-                {waypoints.length === 0 && <div className="text-slate-500 text-sm py-4 italic">No mission loaded. Click the map pin directly from sidebar to place waypoints.</div>}
-                
+                  
+                  <div className="space-y-3">
+                    {waypoints.map((wp, i) => (
+                      <div key={wp.id} className="bg-black/20 rounded-xl py-3 px-4 border border-white/5 flex justify-between items-center hover:bg-white/5 transition-all cursor-pointer group">
+                         <div className="flex gap-4 items-center">
+                            <span className="bg-white/5 border border-white/10 text-slate-500 w-8 h-8 rounded-lg flex items-center justify-center font-mono text-xs group-hover:bg-brand-blue group-hover:text-black transition-all font-bold">{i+1}</span>
+                            <div>
+                              <div className="font-mono text-white text-[11px] tracking-tight">{parseFloat(wp.lat).toFixed(6)}, {parseFloat(wp.lng).toFixed(6)}</div>
+                              <div className="text-[9px] text-slate-600 uppercase tracking-[0.1em] font-bold">LATITUDE / LONGITUDE</div>
+                            </div>
+                         </div>
+                         <div className="text-brand-green font-mono text-xs bg-brand-green/10 px-3 py-1.5 rounded-lg border border-brand-green/10">
+                            <input type="number" value={wp.alt} onChange={e => {
+                               const newWp = [...waypoints];
+                               newWp[i].alt = parseFloat(e.target.value) || 0;
+                               setWaypoints(newWp);
+                               setMissionIntegrity(null);
+                            }} className="bg-transparent w-8 outline-none text-right font-bold" />m
+                         </div>
+                      </div>
+                    ))}
+                    {waypoints.length === 0 && (
+                      <div className="bg-black/20 border border-dashed border-white/10 rounded-2xl p-10 text-center">
+                        <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <MapPin size={24} className="text-slate-700" />
+                        </div>
+                        <p className="text-slate-600 text-[10px] font-bold uppercase tracking-widest leading-relaxed">Awaiting Map Selection...<br/>Place Waypoints to Initialize</p>
+                      </div>
+                    )}
+                  </div>
+                </section>
+
                 {waypoints.length > 0 && (
-                   <div className="mt-4 space-y-2">
+                   <section className="space-y-3 animate-in slide-in-from-bottom-4 duration-500">
                        {missionIntegrity?.success ? (
-                             <div className="flex flex-col gap-1">
-                               <a href={missionIntegrity.explorerUrl} target="_blank" rel="noreferrer" className="w-full flex justify-center items-center gap-2 bg-slate-800 text-brand-green py-2 rounded text-[10px] font-mono border border-brand-green/30 transition-colors cursor-pointer hover:bg-slate-700">
-                                  <ShieldCheck size={14} /> Mission Secured on Stellar
+                             <div className="space-y-2">
+                               <a href={missionIntegrity.explorerUrl} target="_blank" rel="noreferrer" className="w-full flex justify-center items-center gap-3 bg-brand-green/10 text-brand-green py-4 rounded-xl text-[10px] font-black tracking-widest border border-brand-green/30 hover:bg-brand-green hover:text-black transition-all">
+                                  <ShieldCheck size={16} /> BLOCKCHAIN_VERIFIED
                                </a>
-                               <div className="text-[9px] font-mono text-slate-400 bg-slate-900 px-2 py-1 rounded border border-slate-800 text-center break-all shadow-inner">
-                                 HASH: {missionIntegrity.hashHex}
+                               <div className="p-4 bg-black/40 rounded-xl border border-white/5">
+                                  <div className="text-[8px] font-black text-slate-600 uppercase mb-2 tracking-[0.2em]">Cryptographic Payload Hash</div>
+                                  <div className="text-[9px] font-mono text-slate-400 break-all leading-relaxed bg-black/40 p-2 rounded border border-white/5">{missionIntegrity.hashHex}</div>
                                </div>
                              </div>
                        ) : (
-                             <button onClick={registerMission} disabled={isRegistering} className="w-full bg-brand-blue/20 text-brand-blue hover:bg-brand-blue hover:text-white py-2 rounded text-xs font-bold uppercase transition-colors border border-brand-blue/30 tracking-widest flex justify-center items-center gap-2">
-                               {isRegistering ? 'ANCHORING...' : <><Shield size={14}/> Anchor Mission Integrity</>}
+                             <button onClick={registerMission} disabled={isRegistering} className="w-full bg-stellar-indigo text-white py-4 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all hover:shadow-glow-purple border border-white/10 flex justify-center items-center gap-3 disabled:opacity-50">
+                               {isRegistering ? 'ANCHORING_DNA...' : <><Shield size={16}/> ANCHOR_INTEGRITY</>}
                              </button>
                        )}
-                       <button onClick={uploadMission} disabled={!missionIntegrity?.success} className={`w-full py-2 rounded text-xs font-bold uppercase transition-colors tracking-widest flex justify-center items-center gap-2 ${missionIntegrity?.success ? 'bg-brand-green/20 text-brand-green hover:bg-brand-green hover:text-white border border-brand-green/30 shadow-[0_4px_10px_rgba(16,185,129,0.2)]' : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-50'}`}>
-                         <UploadCloud size={14}/> {missionIntegrity?.success ? 'Execute & Upload' : 'Awaiting Integrity Anchor'}
+                       <button onClick={uploadMission} disabled={!missionIntegrity?.success} className={`w-full py-4 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all flex justify-center items-center gap-3 ${missionIntegrity?.success ? 'bg-white text-black hover:bg-brand-blue hover:text-white shadow-glow-blue' : 'bg-slate-800 text-slate-600 border border-white/5 cursor-not-allowed opacity-50'}`}>
+                         <UploadCloud size={16}/> {missionIntegrity?.success ? 'DEPLOY_PROTOCOL' : 'AWAITING_INTEGRITY'}
                        </button>
-                   </div>
+                   </section>
                 )}
-              </div>
-           </div>
-        </aside>
-
+             </div>
+          </aside>
+        )}
       </div>
 
-      {/* 5. BOTTOM TELEMETRY BAR */}
-      {/* 5. BOTTOM TELEMETRY BAR */}
-      <footer className="h-14 bg-brand-panel border-t border-slate-700/50 z-50 flex items-center px-8 gap-8 shadow-[0_-4px_15px_rgba(0,0,0,0.3)] shrink-0 justify-around transition-opacity duration-300">
-         <div className="flex flex-col items-center">
-            <span className="text-[9px] text-slate-500 font-sans tracking-widest uppercase mb-0.5">Altitude ({units === 'METRIC' ? 'm' : 'ft'})</span>
-            <span className={`font-mono font-bold text-lg flex items-center gap-1 leading-none ${isDroneConnected ? 'text-brand-green' : 'text-slate-600'}`}>
-               {isDroneConnected ? (units === 'METRIC' ? telemetry.altitude.toFixed(1) : (telemetry.altitude * 3.28084).toFixed(1)) : '---'}
-            </span>
-         </div>
-         <div className="w-px h-6 bg-slate-700"></div>
+      {/* 5. BOTTOM TELEMETRY BAR - Only shown in Mission View */}
+      {currentView === 'MISSION' && (
+        <footer className="h-16 bg-brand-panel border-t border-white/5 flex items-center px-12 z-50 shadow-2xl shrink-0 justify-between">
+           <div className="flex items-center gap-12">
+             <div className="flex flex-col">
+                <span className="text-[8px] text-slate-600 font-black tracking-[0.3em] uppercase mb-1">Altitude</span>
+                <div className="flex items-end gap-1 leading-none">
+                  <span className={`font-mono font-black text-2xl ${isDroneConnected ? 'text-white' : 'text-slate-800'}`}>
+                     {isDroneConnected ? (units === 'METRIC' ? telemetry.altitude.toFixed(1) : (telemetry.altitude * 3.28084).toFixed(1)) : '0.0'}
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-600 mb-1">{units === 'METRIC' ? 'M' : 'FT'}</span>
+                </div>
+             </div>
 
-         <div className="flex flex-col items-center">
-            <span className="text-[9px] text-slate-500 font-sans tracking-widest uppercase mb-0.5">Ground Spd ({units === 'METRIC' ? 'm/s' : 'mph'})</span>
-            <span className={`font-mono font-bold text-lg flex items-center gap-1 leading-none ${isDroneConnected ? 'text-white' : 'text-slate-600'}`}>
-              <Gauge size={14} className={isDroneConnected ? "text-slate-400" : "text-slate-700"}/> 
-              {isDroneConnected ? (units === 'METRIC' ? telemetry.speed.toFixed(1) : (telemetry.speed * 2.23694).toFixed(1)) : '---'}
-            </span>
-         </div>
-         <div className="w-px h-6 bg-slate-700"></div>
+             <div className="flex flex-col">
+                <span className="text-[8px] text-slate-600 font-black tracking-[0.3em] uppercase mb-1">Velocity</span>
+                <div className="flex items-end gap-1 leading-none">
+                  <span className={`font-mono font-black text-2xl ${isDroneConnected ? 'text-white' : 'text-slate-800'}`}>
+                    {isDroneConnected ? (units === 'METRIC' ? telemetry.speed.toFixed(1) : (telemetry.speed * 2.23694).toFixed(1)) : '0.0'}
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-600 mb-1">{units === 'METRIC' ? 'M/S' : 'MPH'}</span>
+                </div>
+             </div>
 
-         <div className="flex flex-col items-center">
-            <span className="text-[9px] text-slate-500 font-sans tracking-widest uppercase mb-0.5">Heading</span>
-            <span className={`font-mono font-bold text-lg leading-none ${isDroneConnected ? 'text-white' : 'text-slate-600'}`}>
-               {isDroneConnected ? telemetry.heading + '°' : '---°'}
-            </span>
-         </div>
-         <div className="w-px h-6 bg-slate-700"></div>
+             <div className="flex flex-col">
+                <span className="text-[8px] text-slate-600 font-black tracking-[0.3em] uppercase mb-1">Heading</span>
+                <div className="flex items-end gap-1 leading-none">
+                  <span className={`font-mono font-black text-2xl ${isDroneConnected ? 'text-white' : 'text-slate-800'}`}>
+                     {isDroneConnected ? telemetry.heading : '000'}
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-600 mb-1">°</span>
+                </div>
+             </div>
+           </div>
 
-         <div className="flex flex-col items-center">
-            <span className="text-[9px] text-slate-500 font-sans tracking-widest uppercase mb-0.5">Attitude (R / P)</span>
-            <span className="font-mono text-sm leading-none mt-1">
-              <span className={isDroneConnected ? "text-brand-blue" : "text-slate-600"}>{isDroneConnected ? telemetry.roll.toFixed(1) : '-'}°</span>
-              <span className="mx-2 text-slate-700">|</span>
-              <span className={isDroneConnected ? "text-brand-amber" : "text-slate-600"}>{isDroneConnected ? telemetry.pitch.toFixed(1) : '-'}°</span>
-            </span>
-         </div>
-      </footer>
+           <div className="flex items-center gap-8">
+              <div className="flex flex-col items-end">
+                <span className="text-[8px] text-slate-600 font-black tracking-[0.3em] uppercase mb-1">Power_System</span>
+                <div className="flex items-center gap-4">
+                  <div className="w-24 h-2 bg-white/5 rounded-full overflow-hidden border border-white/5 p-0.5">
+                    <div className={`h-full rounded-full transition-all duration-500 ${telemetry.battery > 70 ? 'bg-brand-green' : telemetry.battery > 30 ? 'bg-brand-amber' : 'bg-brand-red'}`} style={{width: `${telemetry.battery}%`}} />
+                  </div>
+                  <span className="font-mono font-black text-sm text-white">{telemetry.battery.toFixed(1)}%</span>
+                </div>
+              </div>
+           </div>
+        </footer>
+      )}
+
       
       {/* 6. MODALS & OVERLAYS */}
 
