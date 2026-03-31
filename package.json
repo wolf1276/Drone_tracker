@@ -4,8 +4,12 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "frontend:dev": "npm run dev --prefix frontend",
+    "backend:dev": "node backend/server.js",
+    "dev": "npm run frontend:dev",
+    "test": "npm run test --prefix frontend"
   },
+
   "keywords": [],
   "author": "",
   "license": "ISC",

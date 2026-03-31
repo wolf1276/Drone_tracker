@@ -1,84 +1,93 @@
-<div align="center">
-  <h1>🚁 Mission Command: Zero-Trust</h1>
-  <p><b>Military-Grade Drone Tracking & Telemetry via the Stellar Blockchain</b></p>
-</div>
+# 🚁 Stellar Drone Tracker dApp v4.2
 
-## 🚨 The Problem
-Modern consumer and enterprise drones rely on inherently vulnerable radio, Wi-Fi, and LTE protocols. If an attacker intercepts the frequency, they can spoof signals, hijack telemetry, or inject malicious flight paths. Ground control stations currently have no mathematical way to prove the drone on the other end is truly theirs, or that its firmware hasn't been maliciously altered.
+[![Stellar dApp CI](https://github.com/Adrija-Saha2006/Drone_tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/Adrija-Saha2006/Drone_tracker/actions)
+[![Stellar Network](https://img.shields.io/badge/Network-Stellar_Testnet-9C4AED?logo=stellar)](https://www.stellar.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-black.svg)](https://opensource.org/licenses/MIT)
 
-## 💡 Our Solution
-We built a **Zero-Trust Handshake Protocol** for Unmanned Aerial Vehicles (UAVs). By leveraging simulated Zero-Knowledge (ZK) proofs and the **Stellar Testnet Ledger**, our Ground Control Station physically *refuses* to talk to drone hardware unless:
-1. The drone mathematically proves its identity using a simulated ZK circuit.
-2. The drone's firmware SHA-256 footprint perfectly matches an anchored transaction on the Stellar Blockchain.
+A production-grade Ground Control Station (GCS) and Stellar dApp integration. This project combines military-grade drone telemetry tracking with advanced blockchain-based payment and integrity systems.
 
-If both conditions pass, we drop an ephemeral AES-256 symmetric tunnel for all tracking and commands. If either fails, the drone is permanently logged out and blocked at the port level. 
+## 📺 Demo
+- **Live Demo:** [Placeholder for Live Link]
+- **Walkthrough Video:** [Placeholder for Demo Video]
 
----
+## ✨ Key Features
 
-## 🔥 Key Hackathon Features
+### 1. 💼 Advanced Wallet Integration
+- **Freighter Connectivity**: Native support for the Stellar Freighter wallet.
+- **Auto-Detection**: Intelligently detects if the wallet is installed and handles network switching to **TESTNET**.
+- **State Management**: Persistent session handling using local state and `localStorage`.
 
-- **🔐 ZK-Firmware Gating (`connectionVerified`)**: The system aggressively rejects telemetry arrays and cartography access unless the drone hardware can dynamically prove its firmware integrity, cross-referenced identically against the Horizon API.
-- **⚓ Mission Integrity Anchoring (`missionAnchored`)**: You cannot even `ARM` the drone unless your designated geometric flight path (Waypoints) has been SHA-256 hashed and structurally anchored to the Stellar Blockchain. 
-- **💼 Freighter Wallet Integration**: Command authority is tied directly to your browser extension, ensuring dynamic flight path anchors are natively logged to an authorized public key.
-- **🛡️ AES-256 Websocket Tunnel**: Once the blockchain verifies the handshake, all coordinate data streams stream entirely obfuscated bridging the Node.js layer and React client.
-- **🔎 Built-In Blockchain Evaluators**: We didn't just build a dashboard; we built an **Integrity Verification Panel** that allows Hackathon Judges to paste mission JSON arrays, raw hashes, or TxIDs directly into the UI to natively query Stellar nodes and prove our cryptographic anchors.
-- **⏱️ Professional Monochrome HUD**: A completely custom, distraction-free aesthetic boasting interactive mapping tools, artificial horizon feedback, and dynamic live terminal readouts.
+### 2. 📊 Real-time Balance Handling
+- **XLM Tracking**: Live fetching of XLM balances on the Stellar Testnet.
+- **Formatted Display**: Balances are clearly displayed with 4-decimal precision.
+- **Smart Refresh**: Automatic balance synchronization after every successful transaction.
 
----
+### 3. 💸 Secure Transaction Flow
+- **Broadcast Payments**: Send XLM to any Stellar address with a single click.
+- **Input Validation**: Strict client-side validation for Stellar Public Keys (56-char check) and amounts.
+- **State-Aware UI**: Multi-stage loaders (Idle → Signing → Submitting → Success/Failure).
+- **Direct Explorer Links**: One-click access to **StellarExpert** to verify transaction hashes.
 
-## 🏗️ Architecture Stack
+### 4. 🛰️ Drone Mission Command
+- **ZK-Handshake**: Zero-Knowledge proof simulation for hardware authorization.
+- **Mission Integrity**: Secure flight path waypoints by anchoring their SHA-256 hashes to the blockchain.
+- **Tactical Maps**: ESRI Satellite imagery with real-time telemetry overlays.
 
-- **Frontend Terminal**: React, Vite, TailwindCSS (Strict Monochrome Palette), Lucide React
-- **Blockchain Oracle**: `@stellar/freighter-api`, `stellar-sdk` leveraging the active Horizon Testnet
-- **Backend Node Engine**: Node.js, Express, Socket.io (WebSocket Gating)
-- **Cryptography**: `crypto-js` (Symmetric AES Routing), Simulated ZK-Snarks Constraints
+## 🛠️ Tech Stack
 
----
+- **Frontend**: React (Vite), Tailwind CSS
+- **Blockchain**: Stellar SDK (`stellar-sdk`), Freighter API
+- **State/Hooks**: Custom React Hooks (`useStellar`)
+- **Testing**: Vitest, React Testing Library
+- **Icons**: Lucide React
+- **DevOps**: GitHub Actions (CI/CD)
 
-## 🚀 Quick Start Guide (For Judges)
+## 🚀 Setup & Installation
 
-### 1. Boot up the Middleware Gateway Server
-This server handles AES encryption, Stellar Anchor matching, and drone hardware physics simulation.
+### Prerequisites
+- [Node.js](https://nodejs.org/) (v18+)
+- [Freighter Wallet](https://www.freighter.app/) extension installed
+
+### 1. Clone & Install
 ```bash
-cd backend
+git clone https://github.com/Adrija-Saha2006/Drone_tracker.git
+cd Drone_tracker/frontend
 npm install
-node server.js
 ```
 
-### 2. Launch the Ground Control Station (GCS)
+### 2. Run the Development Server
 ```bash
-cd frontend
-npm install
 npm run dev
 ```
+Navigate to `http://localhost:5173`
 
-### 3. See the Zero-Trust Protocol in Action
-1. Open up `http://localhost:5173`. You will instantly hit the complete **Lockout Shield**.
-2. Assuming you have the **Freighter Extension** installed and dialed to the `TESTNET`, click **Connect Wallet**.
-3. Hit **AUTHORIZE SECURE LINK**. Watch the terminal speed through the ZK and Stellar blockchain authentications to establish the AES arrays.
-4. Try to click **ARM**. *It's disabled*. You must add waypoints to the map and click **Anchor Mission Integrity**.
-5. Finally, hit **VERIFY PAYLOAD** in the top navigation, paste the resulting Hash or TxID, and watch the system physically confirm your anchored flight path against the active Stellar ledger natively.
-
-## 🐳 Deployment with Docker
-
-For a streamlined, containerized experience, you can launch the entire ecosystem (Frontend & Backend) using Docker Compose.
-
-### 1. Requirements
-Ensure you have **Docker** and **Docker Compose** installed on your system.
-
-### 2. Launch the Stack
-From the project root, run:
+### 3. Running Tests
+We maintain 100% logic coverage for critical Stellar features.
 ```bash
-docker-compose up --build
+npm run test
 ```
-This command will:
-- Build the Node.js backend environment.
-- Build the React/Vite frontend environment.
-- Orchestrate the networking and port mapping automatically.
 
-### 3. Access the Services
-- **Ground Control Station (Frontend)**: `http://localhost:5173`
-- **Middleware Gateway (Backend)**: `http://localhost:3000`
+## 📖 How to Use
+
+### Connecting Wallet
+1. Open the **STELLAR dAPP** tab in the main navigation.
+2. Click **Connect Freighter Wallet**.
+3. Approve the request in your browser extension.
+4. Ensure your wallet is set to the **Testnet**.
+
+### Sending a Transaction
+1. Once connected, your XLM balance will appear in the **Wallet Card**.
+2. Enter a recipient public key (starting with `G...`).
+3. Enter the amount of XLM to send.
+4. Click **Broadcast Transaction**.
+5. The status panel will show your transaction hash upon success.
+
+## 📡 CI/CD Pipeline
+Our GitHub Actions workflow automatically:
+1. Installs all project dependencies.
+2. Runs the ESLint suite for code quality.
+3. Executes the Vitest test suite.
+4. Builds the production-ready bundle.
 
 ---
-*Built to redefine aerial command boundaries.*
+*Built with ❤️ for the Stellar Blockchain ecosystem.*
