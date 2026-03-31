@@ -33,19 +33,23 @@ export const WalletService = {
       }
 
       // 2. Get Network Info (v6+)
-      let network = "TESTNET";
+      let networkValue = "TESTNET";
       try {
-          network = await getNetwork();
+          const res = await getNetwork();
+          // Ensure we extract a string even if the API returns an object or different type
+          networkValue = typeof res === 'string' ? res : (res?.network || String(res) || "TESTNET");
       } catch (e) {
           console.warn("Using default network TESTNET", e);
       }
 
+      const networkName = String(networkValue || "TESTNET").toUpperCase();
+
       return {
         address: publicKey,
-        network: (network || "TESTNET").toUpperCase()
+        network: networkName
       };
     } catch (error) {
-      const msg = typeof error === 'string' ? error : error.message;
+      const msg = typeof error === 'string' ? error : (error?.message || "Unknown Wallet Error");
       console.error("Wallet connection failed:", msg);
       
       // Provide more helpful error messages
