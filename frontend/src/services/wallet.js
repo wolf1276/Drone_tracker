@@ -2,8 +2,7 @@ import {
   requestAccess, 
   getNetwork, 
   signTransaction, 
-  isConnected, 
-  isAllowed 
+  isConnected 
 } from "@stellar/freighter-api";
 
 export const WalletService = {
