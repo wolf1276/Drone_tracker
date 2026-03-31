@@ -1,22 +1,19 @@
-import React from 'react';
-import { useStellar } from '../../hooks/useStellar';
 import { WalletCard } from './WalletCard';
 import { SendTransactionForm } from './SendTransactionForm';
 import { Zap, ShieldCheck, Globe, Star } from 'lucide-react';
 
-export default function StellarBoard() {
-  const { 
-    address, 
-    balance, 
-    isWalletConnected, 
-    loading, 
-    error, 
-    lastTxHash, 
-    connect, 
-    disconnect, 
-    refreshBalance, 
-    sendPayment 
-  } = useStellar();
+export default function StellarBoard({ 
+  address, 
+  balance, 
+  isWalletConnected, 
+  loading, 
+  error, 
+  lastTxHash, 
+  connect, 
+  disconnect, 
+  refreshBalance, 
+  sendPayment 
+}) {
 
   if (!isWalletConnected) {
     return (

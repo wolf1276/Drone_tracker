@@ -5,6 +5,7 @@ import { WalletCard } from '../components/stellar/WalletCard';
 import { SendTransactionForm } from '../components/stellar/SendTransactionForm';
 import { WalletService } from '../services/wallet';
 import { StellarService } from '../services/stellar';
+import StellarBoard from '../components/stellar/StellarBoard';
 
 // Mock Services
 vi.mock('../services/wallet', () => ({
@@ -96,6 +97,55 @@ describe('Stellar dApp Integration', () => {
     await waitFor(() => {
       expect(mockOnSend).toHaveBeenCalledWith(validAddr, '10');
     }, { timeout: 2000 });
+  });
+
+  it('4. Payment Success Check: Shows transaction hash on broadcast', () => {
+    const mockHash = '59e5...abcd';
+    render(
+      <SendTransactionForm 
+         onSend={() => {}} 
+         loading={false} 
+         error={null} 
+         lastHash={mockHash} 
+      />
+    );
+    expect(screen.getByText(/Broadcast Success/i)).toBeInTheDocument();
+    expect(screen.getByText(/TX: 59e5...abcd/i)).toBeInTheDocument();
+  });
+
+  it('5. Payment Error Check: Displays descriptive on-chain failures', () => {
+    const mockError = "Insufficient XLM balance for this payment.";
+    render(
+      <SendTransactionForm 
+         onSend={() => {}} 
+         loading={false} 
+         error={mockError} 
+         lastHash={null} 
+      />
+    );
+    expect(screen.getByText(/Transaction Failed/i)).toBeInTheDocument();
+    expect(screen.getByText(mockError)).toBeInTheDocument();
+  });
+
+  it('6. Address Formatting: Verify shortAddress helper logic', () => {
+    const fullAddr = 'GA5W6Y6HWO77HPLN72EALF7TDTUKU2T6YBX6HGNXBC7CH7Z2V4I5CH4S';
+    const result = StellarService.shortAddress(fullAddr);
+    expect(result).toBe('GA5W...CH4S');
+  });
+
+  it('7. Unconnected State View: Prompts user to bridge gateway', () => {
+    const mockConnect = vi.fn();
+    render(
+      <StellarBoard 
+         isWalletConnected={false}
+         connect={mockConnect}
+         loading={false}
+      />
+    );
+    expect(screen.getByText(/LAUNCH STELLAR/i)).toBeInTheDocument();
+    const connectBtn = screen.getByText(/CONNECT FREIGHTER/i);
+    fireEvent.click(connectBtn);
+    expect(mockConnect).toHaveBeenCalledTimes(1);
   });
 });
 

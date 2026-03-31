@@ -14,44 +14,6 @@ A production-grade Ground Control Station (GCS) and Stellar dApp integration. Th
 
 ### 1. 💼 Advanced Wallet Integration
 - **Freighter Connectivity**: Native support for the Stellar Freighter wallet.
-- **Auto-Detection**: Intelligently detects if the wallet is installed and handles network switching to **TESTNET**.
-- **State Management**: Persistent session handling using local state and `localStorage`.
-
-### 2. 📊 Real-time Balance Handling
-- **XLM Tracking**: Live fetching of XLM balances on the Stellar Testnet.
-- **Formatted Display**: Balances are clearly displayed with 4-decimal precision.
-- **Smart Refresh**: Automatic balance synchronization after every successful transaction.
-
-### 3. 💸 Secure Transaction Flow
-- **Broadcast Payments**: Send XLM to any Stellar address with a single click.
-- **Input Validation**: Strict client-side validation for Stellar Public Keys (56-char check) and amounts.
-- **State-Aware UI**: Multi-stage loaders (Idle → Signing → Submitting → Success/Failure).
-- **Direct Explorer Links**: One-click access to **StellarExpert** to verify transaction hashes.
-
-### 4. 🛰️ Drone Mission Command
-- **ZK-Handshake**: Zero-Knowledge proof simulation for hardware authorization.
-- **Mission Integrity**: Secure flight path waypoints by anchoring their SHA-256 hashes to the blockchain.
-- **Tactical Maps**: ESRI Satellite imagery with real-time telemetry overlays.
-
-## 🛠️ Tech Stack
-
-- **Frontend**: React (Vite), Tailwind CSS
-- **Blockchain**: Stellar SDK (`stellar-sdk`), Freighter API
-- **State/Hooks**: Custom React Hooks (`useStellar`)
-- **Testing**: Vitest, React Testing Library
-- **Icons**: Lucide React
-- **DevOps**: GitHub Actions (CI/CD)
-
-## 🚀 Setup & Installation
-
-### Prerequisites
-- [Node.js](https://nodejs.org/) (v18+)
-- [Freighter Wallet](https://www.freighter.app/) extension installed
-
-### 1. Clone & Install
-```bash
-git clone https://github.com/Adrija-Saha2006/Drone_tracker.git
-cd Drone_tracker/frontend
 npm install
 ```
 

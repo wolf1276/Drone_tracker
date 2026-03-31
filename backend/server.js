@@ -23,7 +23,8 @@ let mode = 'PLAN'; // PLAN, LIVE, SIMULATION
 // Database Mock
 const db = {
   missions: {},
-  firmwares: {}
+  firmwares: {},
+  users: [] // Track unique testnet user connections
 };
 
 // Global Connection Gate State
@@ -102,6 +103,26 @@ app.post('/terminate-session', (req, res) => {
     emitLog(`[SYS] Session completely wiped. connectionVerified boolean reset to false. Returning to Zero-Trust state.`);
     res.json({ success: true });
 });
+
+// -- USER VALIDATION & ANALYTICS -- //
+
+app.post('/register-user', (req, res) => {
+  const { address } = req.body;
+  if (address && !db.users.includes(address)) {
+    db.users.push(address);
+    emitLog(`[STATS] New Testnet User Verified: ${address.substring(0,8)}... (Total Unique: ${db.users.length})`);
+  }
+  res.json({ success: true, count: db.users.length });
+});
+
+app.get('/api/stats', (req, res) => {
+  res.json({ 
+    userCount: db.users.length, 
+    activeSession: !!activeDroneSession,
+    missionAnchored
+  });
+});
+
 
 // -- BLOCKCHAIN INTEGRITY ENDPOINTS -- //
 
