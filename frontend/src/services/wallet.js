@@ -17,14 +17,20 @@ export const WalletService = {
     }
 
     try {
-      // Connect and get public key
-      const { publicKey } = await freighter.requestAccess();
+      // Connect and get public key (compatible with both older object and newer string API versions)
+      const accessResult = await freighter.requestAccess();
+      const publicKey = typeof accessResult === 'string' ? accessResult : accessResult?.publicKey;
       
+      if (!publicKey) {
+          throw new Error("Could not retrieve public key. Please ensure the wallet is unlocked and access is granted.");
+      }
+
       // Verify network is Testnet (requirement)
-      const network = await freighter.getNetwork();
-      if (!network.toUpperCase().includes("TESTNET")) {
-        // We shouldn't throw here if we want users to switch, but we'll warn later
-        console.warn("Wallet connected to", network, "- please switch to TESTNET");
+      let network = "UNKNOWN";
+      try {
+          network = await freighter.getNetwork() || "UNKNOWN";
+      } catch (ne) {
+          console.warn("Could not retrieve network from Freighter", ne);
       }
 
       return {
@@ -32,8 +38,8 @@ export const WalletService = {
         network: network.toUpperCase()
       };
     } catch (error) {
-      console.error("Wallet connection error:", error);
-      throw error;
+      console.error("Critical: Wallet connection sequence failed:", error);
+      throw (typeof error === 'string' ? new Error(error) : error);
     }
   },
 

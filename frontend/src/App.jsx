@@ -746,7 +746,7 @@ export default function App() {
                         </div>
                         <div>
                            <div className="text-[10px] text-gray-600 mb-1">Command Authority Wallet</div>
-                           <div className="text-white break-all">{walletAddress || "Unauthenticated Local Agent"}</div>
+                           <div className="text-white break-all">{address || "Unauthenticated Local Agent"}</div>
                         </div>
                      </div>
                   </div>

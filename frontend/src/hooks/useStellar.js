@@ -3,9 +3,15 @@ import { WalletService } from '../services/wallet';
 import { StellarService } from '../services/stellar';
 
 export const useStellar = () => {
-  const [address, setAddress] = useState(localStorage.getItem('wallet_address') || null);
+  const [address, setAddress] = useState(() => {
+    const stored = localStorage.getItem('wallet_address');
+    return (stored && stored !== "undefined" && stored !== "null") ? stored : null;
+  });
   const [balance, setBalance] = useState("0.0");
-  const [isWalletConnected, setIsWalletConnected] = useState(!!localStorage.getItem('wallet_address'));
+  const [isWalletConnected, setIsWalletConnected] = useState(() => {
+    const stored = localStorage.getItem('wallet_address');
+    return !!stored && stored !== "undefined" && stored !== "null";
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [lastTxHash, setLastTxHash] = useState(null);
