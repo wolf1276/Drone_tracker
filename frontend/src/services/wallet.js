@@ -1,54 +1,69 @@
-import * as freighter from "@stellar/freighter-api";
+import { 
+  requestAccess, 
+  getNetwork, 
+  signTransaction, 
+  isConnected, 
+  isAllowed 
+} from "@stellar/freighter-api";
 
 export const WalletService = {
   /**
    * Check if Freighter is installed
    */
   async isInstalled() {
-    return await freighter.isConnected();
+    try {
+      return await isConnected();
+    } catch (e) {
+      console.warn("Freighter detection failed:", e);
+      return false;
+    }
   },
 
   /**
    * Request wallet access (get public key)
    */
   async connect() {
-    if (!(await this.isInstalled())) {
-      throw new Error("Freighter wallet not found. Please install the extension.");
-    }
-
     try {
-      // Connect and get public key (compatible with both older object and newer string API versions)
-      const accessResult = await freighter.requestAccess();
-      const publicKey = typeof accessResult === 'string' ? accessResult : accessResult?.publicKey;
+      // 1. Direct Access Request (most reliable for triggering prompt)
+      // v6+ returns the public key as a string directly
+      const publicKey = await requestAccess();
       
       if (!publicKey) {
-          throw new Error("Could not retrieve public key. Please ensure the wallet is unlocked and access is granted.");
+          throw new Error("Access denied or no public key returned.");
       }
 
-      // Verify network is Testnet (requirement)
-      let network = "UNKNOWN";
+      // 2. Get Network Info (v6+)
+      let network = "TESTNET";
       try {
-          network = await freighter.getNetwork() || "UNKNOWN";
-      } catch (ne) {
-          console.warn("Could not retrieve network from Freighter", ne);
+          network = await getNetwork();
+      } catch (e) {
+          console.warn("Using default network TESTNET", e);
       }
 
       return {
         address: publicKey,
-        network: network.toUpperCase()
+        network: (network || "TESTNET").toUpperCase()
       };
     } catch (error) {
-      console.error("Critical: Wallet connection sequence failed:", error);
-      throw (typeof error === 'string' ? new Error(error) : error);
+      const msg = typeof error === 'string' ? error : error.message;
+      console.error("Wallet connection failed:", msg);
+      
+      // Provide more helpful error messages
+      if (msg.includes("User declined")) {
+        throw new Error("Connection request declined by user.");
+      }
+      if (msg.includes("not found") || msg.includes("is not defined")) {
+        throw new Error("Freighter not detected. Please install and unlock.");
+      }
+      
+      throw new Error(msg || "Failed to link Freighter Gateway.");
     }
   },
 
   /**
-   * Disconnect local state tracking (wallet itself doesn't have a disconnect API)
+   * Disconnect local state tracking
    */
   async disconnect() {
-    // Freighter doesn't provide a direct disconnect, 
-    // so we just clear our internal state in the app.
     return true;
   },
 
@@ -57,10 +72,9 @@ export const WalletService = {
    */
   async signTransaction(xdr, network = "TESTNET") {
     try {
-      const signedXdr = await freighter.signTransaction(xdr, { network });
-      return signedXdr;
+      return await signTransaction(xdr, { network });
     } catch (error) {
-       console.error("Signing error:", error);
+       console.error("Signing failed:", error);
        throw error;
     }
   }

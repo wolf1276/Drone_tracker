@@ -298,13 +298,16 @@ export default function App() {
                  </button>
               </div>
            ) : (
-              <button 
-                onClick={walletConnect} 
-                className="bg-white text-black text-[10px] font-black uppercase tracking-widest px-6 py-2.5 rounded-xl shadow-glow-blue hover:bg-brand-blue hover:text-white transition-all flex items-center gap-2 group"
-              >
-                 {walletLoading ? "Connecting..." : "Connect Gateway"} 
-                 <Zap size={12} className="group-hover:animate-pulse" />
-              </button>
+              <div className="flex flex-col items-end gap-1">
+                 <button 
+                   onClick={walletConnect} 
+                   className="bg-white text-black text-[10px] font-black uppercase tracking-widest px-6 py-2.5 rounded-xl shadow-glow-blue hover:bg-brand-blue hover:text-white transition-all flex items-center gap-2 group"
+                 >
+                    {walletLoading ? "Connecting..." : "Connect Gateway"} 
+                    <Zap size={12} className="group-hover:animate-pulse" />
+                 </button>
+                 {walletError && <span className="text-[8px] font-bold text-red-500 animate-pulse">{walletError}</span>}
+              </div>
            )}
            
            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${isDroneConnected ? 'border-brand-green/30 bg-brand-green/5 text-brand-green' : 'border-slate-800 bg-black/40 text-slate-600'}`}>
