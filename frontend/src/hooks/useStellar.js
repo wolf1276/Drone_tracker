@@ -43,7 +43,7 @@ export const useStellar = () => {
       
       // Auto-refresh balance
       const bal = await StellarService.getBalance(address);
-      setBalance(bal);
+      setBalance(String(bal || "0.0"));
       return address;
     } catch (e) {
       console.error(e);

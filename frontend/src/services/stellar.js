@@ -29,8 +29,13 @@ export const StellarService = {
    * @param {string} address 
    */
   shortAddress(address) {
-    if (!address) return "";
-    return `${address.substring(0, 4)}...${address.substring(address.length - 4)}`;
+    if (!address || typeof address !== 'string') return "";
+    try {
+      return `${address.substring(0, 4)}...${address.substring(address.length - 4)}`;
+    } catch (e) {
+      console.warn("shortAddress failed for", address, e);
+      return String(address).substring(0, 8);
+    }
   },
 
   /**
