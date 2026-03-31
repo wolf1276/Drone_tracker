@@ -23,20 +23,34 @@ if (process.env.STELLAR_PRIVATE_KEY) {
 
 // Auto-fund testing account
 async function fundAccountIfEmpty() {
-    try {
-        await server.loadAccount(sourceKeypair.publicKey());
-        console.log("Stellar Account already active and funded.");
-    } catch (e) {
-        console.log("Funding Stellar account via Friendbot...");
+    for (let i = 0; i < 5; i++) {
         try {
-            await axios.get(`https://friendbot.stellar.org?addr=${encodeURIComponent(sourceKeypair.publicKey())}`);
-            console.log("Stellar Account funded successfully!");
-        } catch(err) {
-            console.error("Funding failed", err.message);
+            await server.loadAccount(sourceKeypair.publicKey());
+            console.log("Stellar Account active and ready.");
+            return true;
+        } catch (e) {
+            console.log(`[Stellar] Account not found (attempt ${i+1}/5). Funding via Friendbot...`);
+            try {
+                await axios.get(`https://friendbot.stellar.org?addr=${encodeURIComponent(sourceKeypair.publicKey())}`);
+                console.log("Stellar Account funding request sent!");
+                // Wait for Friendbot to process
+                await new Promise(r => setTimeout(r, 4000));
+            } catch(err) {
+                console.error("Friendbot request failed", err.message);
+            }
         }
     }
+    return false;
 }
-fundAccountIfEmpty();
+
+// Global initialization promise
+const initPromise = fundAccountIfEmpty();
+
+// Wait wrapper for services
+async function ensureInitialized() {
+    await initPromise;
+}
+
 
 // Hash computer (SHA256 -> hex string)
 function computeHash(dataString) {
@@ -47,7 +61,9 @@ function computeHash(dataString) {
 async function registerHashOnBlockchain(hashHex) {
   let transaction; 
   try {
+    await ensureInitialized();
     const account = await server.loadAccount(sourceKeypair.publicKey());
+
     
     // Memo.hash accepts a 32-byte hex string! Ideal for SHA256.
     const memo = StellarSdk.Memo.hash(hashHex);
@@ -91,6 +107,7 @@ async function registerHashOnBlockchain(hashHex) {
 // Queries Horizon for the transaction and verifies memo matches expected hash
 async function verifyHashOnBlockchain(txId, expectedHashHex) {
   try {
+    await ensureInitialized();
     const tx = await server.transactions().transaction(txId).call();
     if (tx.memo_type === 'hash') {
       const memoBuffer = Buffer.from(tx.memo, 'base64');
@@ -107,6 +124,7 @@ async function verifyHashOnBlockchain(txId, expectedHashHex) {
 // Searches recent transactions for a matching payload hash securely
 async function searchHashInAccount(hashHex) {
   try {
+    await ensureInitialized();
     const accountId = sourceKeypair.publicKey();
     const txPage = await server.transactions().forAccount(accountId).order('desc').limit(150).call();
     for (const tx of txPage.records) {

@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
 import CryptoJS from 'crypto-js';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents } from 'react-leaflet';
-import * as freighterAPI from "@stellar/freighter-api";
 import StellarBoard from './components/stellar/StellarBoard';
 import 'leaflet/dist/leaflet.css';
 
@@ -70,11 +69,10 @@ export default function App() {
   const [mapLayer, setMapLayer] = useState('SATELLITE'); // 'SATELLITE' or 'STREETS'
   
   // Blockchain States
-  const [walletAddress, setWalletAddress] = useState(null);
+  const [walletAddress] = useState(null);
   const [firmwareStatus, setFirmwareStatus] = useState(null);
   const [missionIntegrity, setMissionIntegrity] = useState(null);
   const [isRegistering, setIsRegistering] = useState(false);
-  const [terminalLogs, setTerminalLogs] = useState([]);
   const [isDroneConnected, setIsDroneConnected] = useState(false);
   const [showLedger, setShowLedger] = useState(false);
   const [showVerifier, setShowVerifier] = useState(false);
@@ -98,8 +96,9 @@ export default function App() {
          });
          const data = await res.json();
          setFirmwareStatus({ ...data, hashHex: regData.hashHex });
-      } catch (e) { console.error(e); }
+      } catch (_e) { console.error(_e); }
     };
+
     verifyFirmware();
 
     socket.on('telemetry', (payload) => {
@@ -114,8 +113,9 @@ export default function App() {
            const newPath = [...prev, [data.lat, data.lng]];
            return newPath.slice(-500); 
          });
-      } catch (e) { console.error("Unverified decrypt"); }
+      } catch { console.error("Unverified decrypt"); }
     });
+
 
     socket.on('waypoints', (data) => setWaypoints(data));
     
@@ -123,8 +123,8 @@ export default function App() {
       setLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev].slice(0, 50));
     });
 
-    socket.on('terminal_log', (msg) => {
-      setTerminalLogs(prev => [msg, ...prev].slice(0, 100));
+    socket.on('terminal_log', () => {
+      // Logic removed since terminalLogs is unused
     });
 
     return () => {
@@ -169,52 +169,9 @@ export default function App() {
     setMeasurePoints([...measurePoints, [pt.lat, pt.lng]]);
   };
 
-  const connectWallet = async () => {
-    try {
-      if (window.freighterApi || await freighterAPI.isConnected()) {
-        try {
-           await freighterAPI.requestAccess();
-        } catch (err) {
-           throw new Error("Access request explicitly denied by user.");
-        }
-        
-        // Exact constraint: Ensure Network strictly reads TESTNET
-        let activeNetwork = "";
-        try {
-           const netInfo = await freighterAPI.getNetwork();
-           activeNetwork = typeof netInfo === "string" ? netInfo : netInfo?.network || "PUBLIC";
-        } catch (e) {
-           throw new Error("Could not verify active Freighter wallet network.");
-        }
+  // Deprecated connectWallet removed for lint. Use Stellar dApp view for wallet management.
 
-        if (!activeNetwork.toUpperCase().includes('TESTNET')) {
-           alert("Freighter Wallet is currently not mapped to TESTNET. Please switch networks in your wallet extension settings.");
-           throw new Error(`Freighter configured to invalid network: Required TESTNET (Found: ${activeNetwork})`);
-        }
-        
-        // Exact constraint: Fetch Public Key unequivocally via getPublicKey()
-        let pubKey = "";
-        try {
-           const pk = await freighterAPI.getPublicKey();
-           pubKey = typeof pk === "string" ? pk : pk?.publicKey || "";
-        } catch (e) {
-           throw new Error("Freighter denied getPublicKey request execution.");
-        }
-        
-        if (pubKey && typeof pubKey === 'string' && pubKey.length > 10) {
-          setWalletAddress(pubKey);
-          setLogs(prev => [`[${new Date().toLocaleTimeString()}] WALLET VERIFIED: ${pubKey.substring(0,8)}... on ${activeNetwork} ledger.`, ...prev]);
-        } else {
-          throw new Error("Invalid native address returned systematically from Freighter wallet.");
-        }
-      } else {
-        alert("Freighter Wallet extension missing (window.freighterApi undefined). Please install.");
-      }
-    } catch (e) {
-      console.error(e);
-      setLogs(prev => [`[${new Date().toLocaleTimeString()}] Freighter Error: ${e.message}`, ...prev]);
-    }
-  };
+
 
   const connectSecureDrone = async () => {
      if (!firmwareStatus || !firmwareStatus.hashHex) {
@@ -255,18 +212,9 @@ export default function App() {
      }
   };
 
-  const disconnectSecureDrone = async () => {
-      try {
-         await fetch('http://localhost:3000/terminate-session', { method: 'POST' });
-      } catch(e) {}
-      sessionKeyRef.current = null;
-      setIsDroneConnected(false);
-      setMissionIntegrity(null); // Explicitly void the mission integrity token visually
-      
-      // Reset Telemetry display defaults
-      setTelemetry({ pitch: 0, roll: 0, lat: telemetry.lat, lng: telemetry.lng, altitude: 0, speed: 0, heading: 0, battery: 0, status: 'DISCONNECTED', mode: 'PLAN', gps: 0 });
-      setLogs(prev => [`[${new Date().toLocaleTimeString()}] Secure session actively terminated.`, ...prev]);
-  };
+   // disconnectSecureDrone removed since it's unused in current view
+
+
 
   const registerMission = async () => {
     setIsRegistering(true);
@@ -323,16 +271,8 @@ export default function App() {
     setLogs(prev => [`[${new Date().toLocaleTimeString()}] Mission Cleared`, ...prev]);
   };
 
-  const calculateDistance = () => {
-    if (measurePoints.length < 2) return 0;
-    let dist = 0;
-    for (let i = 0; i < measurePoints.length - 1; i++) {
-       const p1 = L.latLng(measurePoints[i][0], measurePoints[i][1]);
-       const p2 = L.latLng(measurePoints[i+1][0], measurePoints[i+1][1]);
-       dist += p1.distanceTo(p2);
-    }
-    return dist;
-  };
+  // calculateDistance removed for linting. Unused by dashboard visuals.
+
 
   const handleManualVerify = async () => {
       setIsVerifying(true);
